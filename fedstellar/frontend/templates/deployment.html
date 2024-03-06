@@ -184,6 +184,29 @@
                 <option>Median</option>
             </select>
         </div>
+        <div id="blockchainForm" class="form-group row container-shadow tiny grey">
+            <h4 class="step-number">Blockchain <i class="fa fa-sitemap"></i></h4>
+            <h5 class="step-title">Use distributed reputation system</h5>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="inlineBlockchain" id="no-blockchain-btn" checked>
+                <label class="form-check-label" for="no-blockchain-btn">No</label>
+                <small id="topologyCustomHelp" class="form-text text-muted">
+                    <i id="topologyCustomIcon" class="fa fa-info-circle"></i>
+                </small>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="inlineBlockchain" id="yes-blockchain-btn">
+                <label class="form-check-label" for="yes-blockchain-btn">Yes</label>
+                <small id="topologyPredefinedHelp" class="form-text text-muted">
+                    <i id="topologyPredefinedIcon" class="fa fa-info-circle"></i>
+                </small>
+            </div>
+            <div id="blockchain-config" style="display: none">
+                <h5 class="step-title">Number of mining Nodes</h5>
+                <input type="number" class="form-control" id="blockchain-nodes" placeholder="Number of nodes"
+                    min="2" max="5" value="2" style="display: inline; width: 40%">
+            </div>
+        </div>
     </div>
     <div id="topology-container" class="col-md-8 text-center" style="border: 2px solid black">
         <div id="info-container">
@@ -698,6 +721,9 @@
         data["mobile_participants_percent"] = document.getElementById("mobileParticipantsPercent").value
         data["additional_participants"] = aditional_participants
         data["schema_additional_participants"] = document.getElementById("schemaAdditionalParticipantsSelect").value
+
+        data["number_of_validation_nodes"] = document.getElementById("blockchain-nodes").value
+        data["use_blockchain"] = document.getElementById("yes-blockchain-btn").checked
         return data
     }
 
@@ -1212,6 +1238,18 @@
         }
     });
 
+</script>
+
+<script>
+    blockchainConfig = document.getElementById("blockchain-config");
+    yesBlockchainBtn = document.getElementById("yes-blockchain-btn");
+    yesBlockchainBtn.addEventListener("click", function () {
+        blockchainConfig.style.display = "block";
+    });
+    noBlockchainBtn = document.getElementById("no-blockchain-btn");
+    noBlockchainBtn.addEventListener("click", function () {
+        blockchainConfig.style.display = "none";
+    });
 </script>
 
 <script>

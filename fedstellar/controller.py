@@ -867,6 +867,26 @@ class Controller:
         topologymanager.add_nodes(nodes_ip_port)
         return topologymanager
 
+    def start_nodes_blockchain(self):
+
+        try:
+            subprocess.check_call(
+                [
+                    "docker",
+                    "compose",
+                    "-f",
+                    f"{self.config_dir}/docker-compose_blockchain.yml",
+                    "up",
+                    "--build",
+                    "-d",
+                ]
+            )
+        except subprocess.CalledProcessError as e:
+            logging.error(
+                "Docker Compose failed to start the BLOCKCHAIN."
+            )
+            raise e
+
     def start_nodes_docker(self):
         logging.info("Starting nodes using Docker Compose...")
         logging.info("env path: {}".format(self.env_path))
