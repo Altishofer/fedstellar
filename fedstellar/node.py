@@ -1449,7 +1449,7 @@ class MaliciousNode(Node):
     def __interact_blockchain(self):
         rpc_url = "http://172.25.0.104:8545"
         oracle_url = "http://172.25.0.105:8081"
-
+        """
         self.acc = Account.create()
 
         headers = {
@@ -1463,32 +1463,24 @@ class MaliciousNode(Node):
         }
 
         faucet_request = requests.post(
-            url=url,
-            json=data,
+            url=f"{oracle_url}/faucet",
+            json=faucet_body,
             headers=headers
         )
 
 
-
-
-            if r.status_code == 200:
-                return
-        except Exception as error:
-            print(error)
-
-
-        localhost: 8081 / faucet
 		self.sendEth(acc.address)
 		return {
 			"address": acc.address,
 			"pk": acc.key.hex()
 		}
-
-data = {
-    'jsonrpc': '2.0',
-    'method': 'eth_accounts',
-    'id': 1,
-    'params': []
-}
+        
+        data = {
+            'jsonrpc': '2.0',
+            'method': 'eth_accounts',
+            'id': 1,
+            'params': []
+        }
+        """
 
 
