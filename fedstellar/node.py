@@ -1443,3 +1443,52 @@ class MaliciousNode(Node):
         
         super()._Node__train_step()
 
+    ##########################################
+    #    Experimental Blockchain Handlers    #
+    ##########################################
+    def __interact_blockchain(self):
+        rpc_url = "http://172.25.0.104:8545"
+        oracle_url = "http://172.25.0.105:8081"
+
+        self.acc = Account.create()
+
+        headers = {
+            'Content-type': 'application/json',
+            'Accept': 'application/json'
+        }
+
+        # call faucet
+        faucet_body = {
+            "address":self.acc
+        }
+
+        faucet_request = requests.post(
+            url=url,
+            json=data,
+            headers=headers
+        )
+
+
+
+
+            if r.status_code == 200:
+                return
+        except Exception as error:
+            print(error)
+
+
+        localhost: 8081 / faucet
+		self.sendEth(acc.address)
+		return {
+			"address": acc.address,
+			"pk": acc.key.hex()
+		}
+
+data = {
+    'jsonrpc': '2.0',
+    'method': 'eth_accounts',
+    'id': 1,
+    'params': []
+}
+
+

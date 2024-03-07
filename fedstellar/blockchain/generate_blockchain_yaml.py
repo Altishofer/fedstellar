@@ -35,10 +35,12 @@ class Geth:
         self.__copy_dir("geth")
 
     def __copy_dir(self, source):
+        curr_path = os.path.dirname(os.path.abspath(__file__))
         if not os.path.exists(self.__config_dir):
             os.makedirs(self.__config_dir, exist_ok=True)
         target_dir = os.path.join(self.__config_dir, source)
-        shutil.copytree(source, target_dir, dirs_exist_ok=True)
+        source_dir = os.path.join(curr_path, source)
+        shutil.copytree(str(source_dir), target_dir, dirs_exist_ok=True)
 
     @staticmethod
     def __load_genesis() -> dict:

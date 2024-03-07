@@ -876,10 +876,9 @@ class Controller:
 
     def start_blockchain_docker(self):
         Geth(
-            n_validator=self.n_validation_nodes,
+            n_validator=int(self.n_validation_nodes),
             config_dir=f"{self.config_dir}/blockchain"
         )
-        return
         try:
             subprocess.check_call(
                 [
@@ -888,7 +887,7 @@ class Controller:
                     "-f",
                     f"{self.config_dir}/blockchain/blockchain-docker-compose.yml",
                     "-p",
-                    "geth_network",
+                    "blockchain",
                     "up",
                     "--remove-orphans",
                     "--force-recreate",
