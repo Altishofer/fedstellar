@@ -41,3 +41,7 @@ datasets==2.16.0
 timm==0.9.12
 gunicorn==21.2.0
 notebook==7.0.6
+
+# blockchain
+web3==6.15.1
+

@@ -721,8 +721,8 @@
         data["mobile_participants_percent"] = document.getElementById("mobileParticipantsPercent").value
         data["additional_participants"] = aditional_participants
         data["schema_additional_participants"] = document.getElementById("schemaAdditionalParticipantsSelect").value
-
-        data["number_of_validation_nodes"] = document.getElementById("blockchain-nodes").value
+        // Step 16 - blockchain reputation system
+        data["n_validation_nodes"] = document.getElementById("blockchain-nodes").value
         data["use_blockchain"] = document.getElementById("yes-blockchain-btn").checked
         return data
     }

@@ -19,7 +19,7 @@ from fedstellar.config.config import Config
 from fedstellar.config.mender import Mender
 from fedstellar.utils.topologymanager import TopologyManager
 from fedstellar import __version__
-
+from fedstellar.blockchain.generate_blockchain_yaml import Geth
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 
@@ -101,6 +101,10 @@ class Controller:
         self.topologymanager = None
         self.n_nodes = 0
         self.mender = None if self.simulation else Mender()
+
+        # number of validation nodes, 0 if deactivated, assigned value otherwise
+        # TODO: check if arg string or int
+        self.n_validation_nodes = args.n_validation_nodes if hasattr(args, "n_validation_nodes") else 0
     
     def check_version(self):
         # Check version of Fedstellar (__version__ is defined in __init__.py) and compare with __version__ in https://raw.githubusercontent.com/enriquetomasmb/fedstellar/main/fedstellar/__init__.py
@@ -800,6 +804,9 @@ class Controller:
         else:
             logging.info("Simulation mode is disabled, waiting for nodes to start...")
 
+        if self.simulation and self.n_validation_nodes:
+            self.start_blockchain_docker()
+
     def create_topology(self, matrix=None):
         import numpy as np
 
@@ -867,25 +874,34 @@ class Controller:
         topologymanager.add_nodes(nodes_ip_port)
         return topologymanager
 
-    def start_nodes_blockchain(self):
-
+    def start_blockchain_docker(self):
+        Geth(
+            n_validator=self.n_validation_nodes,
+            config_dir=f"{self.config_dir}/blockchain"
+        )
+        return
         try:
             subprocess.check_call(
                 [
                     "docker",
                     "compose",
                     "-f",
-                    f"{self.config_dir}/docker-compose_blockchain.yml",
+                    f"{self.config_dir}/blockchain/blockchain-docker-compose.yml",
+                    "-p",
+                    "geth_network",
                     "up",
-                    "--build",
+                    "--remove-orphans",
+                    "--force-recreate",
                     "-d",
+                    "--build"
                 ]
             )
         except subprocess.CalledProcessError as e:
             logging.error(
-                "Docker Compose failed to start the BLOCKCHAIN."
+                "Docker Compose failed to start BLOCKCHAIN, please check if Docker Compose is installed (https://docs.docker.com/compose/install/) and Docker Engine is running."
             )
             raise e
+
 
     def start_nodes_docker(self):
         logging.info("Starting nodes using Docker Compose...")

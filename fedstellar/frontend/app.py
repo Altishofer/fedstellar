@@ -923,6 +923,10 @@ def fedstellar_scenario_deployment_run():
                 else 80,  # Get the port of the frontend, if not specified, use 80
                 "network_subnet": data["network_subnet"],
                 "network_gateway": data["network_gateway"],
+
+                # set number of validation nodes to 0 to implicitly deactivate the blockchain feature
+                # TODO: check if "False" is always True or if False gets assigned as boolean
+                "n_validation_nodes": data["n_validation_nodes"] if data["use_blockchain"] else 0
             }
             # Save args in a file
             controller_file = os.path.join(
