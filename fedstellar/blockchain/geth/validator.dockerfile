@@ -8,7 +8,7 @@ ENV bootnodeId=""
 ENV bootnodeIp=""
 ENV port=""
 
-ADD ./geth/genesis.json ./genesis.json
+COPY ./genesis.json ./genesis.json
 RUN geth init genesis.json
 RUN rm -f ~/.ethereum/geth/nodekey
 

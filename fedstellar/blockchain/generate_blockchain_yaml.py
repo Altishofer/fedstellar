@@ -11,7 +11,8 @@ w3 = Web3()
 
 class Geth:
 
-    def __init__(self, n_validator=2, config_dir="."):
+    def __init__(self, n_validator=2, config_dir=".", input_dir="."):
+        self.__input_dir = input_dir
         self.__config_dir = config_dir
         self.__boot_id = None
         self.__boot_ip = "172.25.0.101"
@@ -28,11 +29,19 @@ class Geth:
         self.__export_config()
 
     def __setup_dir(self) -> None:
+        current_path = os.path.dirname(os.path.abspath(__file__))
         if not os.path.exists(self.__config_dir):
             os.makedirs(self.__config_dir, exist_ok=True)
-        self.__copy_dir("chaincode")
-        self.__copy_dir("oracle")
-        self.__copy_dir("geth")
+
+        source = os.path.join(current_path, "geth", "genesis.json")
+        shutil.copy(source, os.path.join(self.__config_dir, "genesis.json"))
+
+        source = os.path.join(current_path, "chaincode", "faucet.sol")
+        shutil.copy(source, os.path.join(self.__config_dir, "faucet.sol"))
+
+        # self.__copy_dir("chaincode")
+        # self.__copy_dir("oracle")
+        # self.__copy_dir("geth")
 
     def __copy_dir(self, source):
         curr_path = os.path.dirname(os.path.abspath(__file__))
@@ -88,7 +97,7 @@ class Geth:
                 environment:
                   - nodekeyhex={w3.to_hex(acc.key)[2:]}
                 build:
-                  dockerfile: ./geth/boot.dockerfile
+                  dockerfile: {self.__input_dir}/geth/boot.dockerfile
                 container_name: boot
                 networks:
                   chainnet:
@@ -112,7 +121,7 @@ class Geth:
                       - bootnodeIp={self.__boot_ip}
                       - port=3031{id}
                     build:
-                      dockerfile: ./geth/validator.dockerfile
+                      dockerfile: {self.__input_dir}/geth/validator.dockerfile
                       args:
                         privatekey: {w3.to_hex(acc.key)[2:]}
                         password: {w3.to_hex(w3.eth.account.create().key)}
@@ -143,7 +152,8 @@ class Geth:
                  - PRIVATE_KEY={w3.to_hex(acc.key)[2:]}
                  - RPC_IP={self.__rpc_ip}
                build:
-                 dockerfile: ./geth/oracle.dockerfile
+                 dockerfile: {self.__input_dir}/geth/oracle.dockerfile
+                 context: {self.__input_dir}
                ports:
                  - 8081:8081
                container_name: oracle
@@ -164,7 +174,7 @@ class Geth:
                    - bootnodeId={self.__boot_id}
                    - bootnodeIp={self.__boot_ip}
                  build:
-                   dockerfile: ./geth/rpc.dockerfile
+                   dockerfile: {self.__input_dir}/geth/rpc.dockerfile
                  ports:
                    - 8545:8545
                  container_name: rpc
@@ -192,7 +202,7 @@ class Geth:
                     ''')
         self.__yaml += finalStr
         self.__add_network()
-        with open(f"{self.__config_dir}/blockchain-docker-compoose.yml", "w+") as file:
+        with open(f"{self.__config_dir}/blockchain-docker-compose.yml", "w+") as file:
             file.write(self.__yaml)
         with open(f"{self.__config_dir}/genesis.json", "w+") as file:
             json.dump(self.__genesis, file, indent=4)
@@ -201,5 +211,6 @@ class Geth:
 if __name__ == "__main__":
     b = Geth(
         n_validator=2,
-        config_dir=os.path.join("deployments", datetime.now().strftime("%Y-%m-%d_%H-%M"))
+        config_dir=os.path.join("deployments",
+            datetime.now().strftime("%Y-%m-%d_%H-%M"))
     )

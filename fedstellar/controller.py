@@ -877,24 +877,26 @@ class Controller:
     def start_blockchain_docker(self):
         Geth(
             n_validator=int(self.n_validation_nodes),
-            config_dir=f"{self.config_dir}/blockchain"
+            config_dir=f"{self.config_dir}/blockchain",
+            input_dir="/fedstellar/fedstellar/blockchain"
         )
         try:
-            subprocess.check_call(
+            logging.info("Blockchain is being deployed")
+            p = subprocess.Popen(
                 [
                     "docker",
                     "compose",
                     "-f",
                     f"{self.config_dir}/blockchain/blockchain-docker-compose.yml",
-                    "-p",
-                    "blockchain",
                     "up",
-                    "--remove-orphans",
-                    "--force-recreate",
-                    "-d",
-                    "--build"
-                ]
+                    "--build",
+                    "-d"
+                ],
             )
+            output, error = p.communicate()
+            if p.returncode != 0:
+                print(p.returncode, output, error)
+
         except subprocess.CalledProcessError as e:
             logging.error(
                 "Docker Compose failed to start BLOCKCHAIN, please check if Docker Compose is installed (https://docs.docker.com/compose/install/) and Docker Engine is running."
