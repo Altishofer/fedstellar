@@ -130,20 +130,6 @@ class Manager:
 		return print("ERROR: Deployment failed")
 
 	def test_write(self, word: str):
-		self.contractObj = self.web3.eth.contract(
-			abi=self.contractObj.abi,
-			bytecode=self.contractObj.bytecode,
-			address=self.contractAddress
-		)
-		unsigned_trx = self.contractObj.constructor().build_transaction(
-			{
-				"chainId": self.web3.eth.chain_id,
-				"from": self.acc.address,
-				"nonce": self.web3.eth.get_transaction_count(self.acc.address),
-				"gasPrice": self.web3.to_wei("1", "gwei")
-			}
-		)
-		self.sign_and_deploy(unsigned_trx)
 		unsigned_trx = self.contractObj.functions.writeStore(word).build_transaction(
 			{
 				"chainId": self.web3.eth.chain_id,

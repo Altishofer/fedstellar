@@ -698,6 +698,10 @@ class Controller:
         Controller.stop_blockchain()
 
     def load_configurations_and_start_nodes(self, additional_participants = None, schema_additional_participants=None):
+
+        if self.simulation and self.n_validation_nodes:
+            self.start_blockchain_docker()
+
         if not self.scenario_name:
             self.scenario_name = f'fedstellar_{self.federation}_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}'
         # Once the scenario_name is defined, we can update the config_dir
@@ -818,9 +822,6 @@ class Controller:
         
         if additional_participants_files:
             self.config.add_participants_config(additional_participants_files)
-
-        if self.simulation and self.n_validation_nodes:
-            self.start_blockchain_docker()
 
         if self.simulation:
             self.start_nodes_docker()

@@ -608,7 +608,7 @@ class Node(BaseNode):
 		except:
 			logging.error(f'Error parsing neighbors location from controller response: {response.text}')
 
-		# logging.info(f'({self.addr}) Neighbors location: {self._neighbors.get_neighbors_location()}')
+	# logging.info(f'({self.addr}) Neighbors location: {self._neighbors.get_neighbors_location()}')
 
 	def __report_resources(self):
 		"""
@@ -630,7 +630,7 @@ class Node(BaseNode):
 				cpu_temp = psutil.sensors_temperatures()['coretemp'][0].current
 		except Exception as e:
 			pass
-			# logging.error(f'Error getting CPU temperature: {e}')
+		# logging.error(f'Error getting CPU temperature: {e}')
 		# Gather RAM usage information
 		ram_percent = psutil.virtual_memory().percent
 		# Gather disk usage information
@@ -684,7 +684,7 @@ class Node(BaseNode):
 				self.learner.logger.log_metrics(gpu_info, step=step)
 		except ModuleNotFoundError:
 			pass
-			# logging.info(f'pynvml not found, skipping GPU usage')
+		# logging.info(f'pynvml not found, skipping GPU usage')
 		except Exception as e:
 			logging.error(f'Error getting GPU usage: {e}')
 
@@ -1469,41 +1469,43 @@ class MaliciousNode(Node):
 
 		super()._Node__train_step()
 
-	##########################################
-	#    Experimental Blockchain Handlers    #
-	##########################################
+##########################################
+#    Experimental Blockchain Handlers    #
+##########################################
 
 
 class Blockchain:
 
 	def __init__(self):
-		self.__web3 = self.__initialize_geth()
 		self.__header = {
 			'Content-type': 'application/json',
 			'Accept': 'application/json'
 		}
 		self.__private_key = str()
 		self.__acc_address = str()
-		self.__rpc_url = "http://172.25.0.104:8545"
-		self.__oracle_url = "http://172.25.0.105:8081"
+		self.__rpc_url = "http://localhost:8545"
+		self.__oracle_url = "http://localhost:8081"
 
 		# DDos protection?
 		self.__balance_eth = float()
+		self.__acc = self.__create_account()
+		self.__web3 = self.__initialize_geth()
 		self.__contract_obj = self.__get_contract_from_oracle()
-		self.__create_account()
 
+		print(self.__push_opinion("192.168.0.32", 39))
+		print(self.__get_reputation("192.168.0.32"))
 
 	def __initialize_geth(self):
 		web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
 		web3.middleware_onion.inject(geth_poa_middleware, layer=0)
-		web3.middleware_onion.add(construct_sign_and_send_raw_middleware(self.acc))
+		web3.middleware_onion.add(construct_sign_and_send_raw_middleware(self.__acc))
 		web3.eth.default_account = self.__acc_address
 		return web3
 
 	def __get_contract_from_oracle(self):
 		r = requests.get(
 			url=f"{self.__oracle_url}/getContract",
-			headers=self.__rest_header
+			headers=self.__header
 		)
 		json_response = r.json()
 		return self.__web3.eth.contract(
@@ -1513,34 +1515,24 @@ class Blockchain:
 
 	def __create_account(self):
 		acc = Account.create()
-		self.__private_key = self.__web3.to_hex(acc.key)
-		self.__acc_address = acc.address
+		web3 = Web3()
+		self.__private_key = web3.to_hex(acc.key)
+		self.__acc_address = web3.to_checksum_address(acc.address)
 		r = requests.post(
 			url=f"{self.__oracle_url}/faucet",
-			json={f"address:{self.__acc_address}"},
+			json={f"address": self.__acc_address},
 			headers=self.__header
 		)
+		return acc
 
 	def __request_balance(self):
-		cAddr = self.__web3.to_checksum_address(self.__acc_address)
-		balance = self.__web3.eth.get_balance(cAddr, "latest")
+		balance = self.__web3.eth.get_balance(self.__acc, "latest")
 		return {
-			"address": cAddr,
+			"address": self.__acc_address,
 			"balance_eth": self.__web3.from_wei(balance, "ether")
 		}
 
 	def __push_opinion(self, ip_address: str, opinion: int):
-		unsigned_trx = self.__contract_obj.constructor().build_transaction(
-			{
-				"chainId": self.__web3.eth.chain_id,
-				"from": self.__acc_address,
-				"nonce": self.__web3.eth.get_transaction_count(
-					self.__web3.to_checksum_address(self.__acc_address)
-				),
-				"gasPrice": self.__web3.to_wei("1", "gwei")
-			}
-		)
-		self.__sign_and_deploy(unsigned_trx)
 		unsigned_trx = self.__contract_obj.functions.rateNeighbor(ip_address, opinion).build_transaction(
 			{
 				"chainId": self.__web3.eth.chain_id,
@@ -1554,8 +1546,8 @@ class Blockchain:
 		conf = self.__sign_and_deploy(unsigned_trx)
 		return self.__web3.to_json(conf)
 
-	def __sign_and_deploy(self, hash):
-		s_tx = self.__web3.eth.account.sign_transaction(hash, private_key=self.acc.key)
+	def __sign_and_deploy(self, trx_hash):
+		s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
 		sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
 		return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
 
@@ -1565,6 +1557,7 @@ class Blockchain:
 			"gasPrice": self.__web3.to_wei("1", "gwei")
 		})
 		return number
+
 
 class RepeatedTimer(object):
 	def __init__(self, interval, function, *args, **kwargs):
