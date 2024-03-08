@@ -593,6 +593,24 @@ class Controller:
                 raise Exception("Error while killing docker containers: {}".format(e))
 
     @staticmethod
+    def stop_blockchain():
+        pass
+        #try:
+        #    logging.info("Blockchain is being deployed")
+        #    subprocess.check_call(
+        #        [
+        #            "docker",
+        #            "compose",
+        #            "down",
+        #            "blockchain"
+        #        ]
+        #    )
+        #except subprocess.CalledProcessError:
+        #    logging.error(
+        #        "Docker Compose failed to stop blockchain or blockchain already exited."
+        #    )
+
+    @staticmethod
     def stop_participants():
         if sys.platform == "win32":
             try:
@@ -666,6 +684,7 @@ class Controller:
     def stop():
         logging.info("Closing Fedstellar (exiting from components)... Please wait")
         Controller.stop_participants()
+        Controller.stop_blockchain()
         Controller.stop_frontend()
         Controller.stop_waf()
         Controller.stop_statistics()
@@ -676,6 +695,7 @@ class Controller:
     def stop_nodes():
         logging.info("Closing Fedstellar nodes... Please wait")
         Controller.stop_participants()
+        Controller.stop_blockchain()
 
     def load_configurations_and_start_nodes(self, additional_participants = None, schema_additional_participants=None):
         if not self.scenario_name:
@@ -882,21 +902,19 @@ class Controller:
         )
         try:
             logging.info("Blockchain is being deployed")
-            p = subprocess.Popen(
+            subprocess.check_call(
                 [
                     "docker",
                     "compose",
                     "-f",
                     f"{self.config_dir}/blockchain/blockchain-docker-compose.yml",
                     "up",
-                    "--build",
-                    "-d"
-                ],
+                    "--remove-orphans",
+                    "--force-recreate",
+                    "-d",
+                    "--build"
+                ]
             )
-            output, error = p.communicate()
-            if p.returncode != 0:
-                print(p.returncode, output, error)
-
         except subprocess.CalledProcessError as e:
             logging.error(
                 "Docker Compose failed to start BLOCKCHAIN, please check if Docker Compose is installed (https://docs.docker.com/compose/install/) and Docker Engine is running."

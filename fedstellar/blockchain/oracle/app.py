@@ -16,13 +16,14 @@ app = Flask(__name__)
 class Manager:
 
 	def __init__(self):
-		self.waitUntilRpcUp()
+		self.contract_abi = dict()
+		self.wait_until_rpc_up()
 		self.acc = self.unlock()
-		self.web3 = self.initializeGeth()
-		self.contractObj = self.compileContract()
+		self.web3 = self.initialize_geth()
+		self.contractObj = self.compile_contract()
 		self.contractAddress = self.deploy()
 
-	def waitUntilRpcUp(self):
+	def wait_until_rpc_up(self):
 		headers = {
 			'Content-type': 'application/json',
 			'Accept': 'application/json'
@@ -48,7 +49,7 @@ class Manager:
 			except Exception as error:
 				print("RPC-Server not ready - sleep 10")
 
-	def initializeGeth(self):
+	def initialize_geth(self):
 		node_url = "http://172.25.0.104:8545"
 		web3 = Web3(Web3.HTTPProvider(node_url))
 		web3.middleware_onion.inject(geth_poa_middleware, layer=0)
@@ -56,7 +57,7 @@ class Manager:
 		web3.eth.default_account = self.acc.address
 		return web3
 
-	def compileContract(self):
+	def compile_contract(self):
 		with open("faucet.sol", "r") as file:
 			simple_storage_file = file.read()
 		install_solc("0.8.22")
@@ -78,28 +79,28 @@ class Manager:
 		with open("compiled_code.json", "w") as file:
 			json.dump(compiled_sol, file)
 		contract_bytecode = compiled_sol["contracts"]["faucet.sol"]["Faucet"]["evm"]["bytecode"]["object"]
-		contract_abi = json.loads(compiled_sol["contracts"]["faucet.sol"]["Faucet"]["metadata"])["output"]["abi"]
-		return self.web3.eth.contract(abi=contract_abi, bytecode=contract_bytecode)
+		self.contract_abi = json.loads(compiled_sol["contracts"]["faucet.sol"]["Faucet"]["metadata"])["output"]["abi"]
+		return self.web3.eth.contract(abi=self.contract_abi, bytecode=contract_bytecode)
 
 	def unlock(self):
 		private_key = os.environ.get("PRIVATE_KEY")
 		return Account.from_key("0x" + private_key)
 
-	def sendEth(self, address):
+	def send_eth(self, address):
 		address = self.web3.to_checksum_address(address)
 		tx = {
 			"chainId": self.web3.eth.chain_id,
 			"from": self.acc.address,
-			"value": self.web3.to_wei("5000", "gwei"),
+			"value": self.web3.to_wei("500", "ether"),
 			"to": self.web3.to_checksum_address(address),
 			"nonce": self.web3.eth.get_transaction_count(self.acc.address),
 			"gasPrice": self.web3.to_wei("1", "gwei"),
 			"gas": self.web3.to_wei("22000", "wei")
 		}
-		tx_receipt = self.signAndDeploy(tx)
+		tx_receipt = self.sign_and_deploy(tx)
 		return f"SUCESS: {tx_receipt}"
 
-	def signAndDeploy(self, hash):
+	def sign_and_deploy(self, hash):
 		s_tx = self.web3.eth.account.sign_transaction(hash, private_key=self.acc.key)
 		sent_tx = self.web3.eth.send_raw_transaction(s_tx.rawTransaction)
 		return self.web3.eth.wait_for_transaction_receipt(sent_tx)
@@ -107,7 +108,7 @@ class Manager:
 	def deploy(self):
 		time.sleep(10)
 		for _ in range(20):
-			self.contractObj = self.compileContract()
+			self.contractObj = self.compile_contract()
 			tx_hash = self.contractObj.constructor().build_transaction({
 				"chainId": self.web3.eth.chain_id,
 				"from": self.acc.address,
@@ -116,7 +117,7 @@ class Manager:
 				"nonce": self.web3.eth.get_transaction_count(self.acc.address, 'pending')
 			})
 			try:
-				tx_receipt = self.signAndDeploy(tx_hash)
+				tx_receipt = self.sign_and_deploy(tx_hash)
 				# print(self.web3.to_json(tx_receipt))
 				contractAddress = tx_receipt["contractAddress"]
 				if contractAddress:
@@ -128,13 +129,13 @@ class Manager:
 				time.sleep(5)
 		return print("ERROR: Deployment failed")
 
-	def testWrite(self, word: str):
+	def test_write(self, word: str):
 		self.contractObj = self.web3.eth.contract(
 			abi=self.contractObj.abi,
 			bytecode=self.contractObj.bytecode,
 			address=self.contractAddress
 		)
-		unsignedTrx = self.contractObj.constructor().build_transaction(
+		unsigned_trx = self.contractObj.constructor().build_transaction(
 			{
 				"chainId": self.web3.eth.chain_id,
 				"from": self.acc.address,
@@ -142,8 +143,8 @@ class Manager:
 				"gasPrice": self.web3.to_wei("1", "gwei")
 			}
 		)
-		self.signAndDeploy(unsignedTrx)
-		unsignedTrx = self.contractObj.functions.writeStore(word).build_transaction(
+		self.sign_and_deploy(unsigned_trx)
+		unsigned_trx = self.contractObj.functions.writeStore(word).build_transaction(
 			{
 				"chainId": self.web3.eth.chain_id,
 				"from": self.acc.address,
@@ -151,10 +152,10 @@ class Manager:
 				"gasPrice": self.web3.to_wei("1", "gwei")
 			}
 		)
-		conf = self.signAndDeploy(unsignedTrx)
+		conf = self.sign_and_deploy(unsigned_trx)
 		return self.web3.to_json(conf)
 
-	def testRead(self):
+	def test_read(self):
 		self.contractObj = self.web3.eth.contract(
 			abi=self.contractObj.abi,
 			bytecode=self.contractObj.bytecode,
@@ -167,20 +168,20 @@ class Manager:
 		})
 		return number
 
-	def createAccount(self):
+	def create_account(self):
 		acc = Account.create()
-		self.sendEth(acc.address)
+		self.send_eth(acc.address)
 		return {
 			"address": acc.address,
 			"pk": acc.key.hex()
 		}
 
-	def getBalance(self, addr):
+	def get_balance(self, addr):
 		cAddr = self.web3.to_checksum_address(addr)
 		balance = self.web3.eth.get_balance(cAddr, "latest")
 		return {
 			"address": cAddr,
-			"balanceEth": self.web3.from_wei(balance, "ether")
+			"balance_eth": self.web3.from_wei(balance, "ether")
 		}
 
 
@@ -195,7 +196,7 @@ def home():
 def faucet():
 	address = request.get_json().get("address")
 	return jsonify({
-		"Message": m.sendEth(address)
+		"Message": m.send_eth(address)
 	})
 
 
@@ -203,26 +204,26 @@ def faucet():
 def testNumberWrite():
 	number = request.get_json().get("numberToStore")
 	return jsonify({
-		"Message": m.testWrite(number)
+		"Message": m.test_write(number)
 	})
 
 
 @app.route("/testRead", methods=["GET"])
 def testNumberRead():
 	return jsonify({
-		"Message": m.testRead()
+		"Message": m.test_read()
 	})
 
 
 @app.route("/createAccount", methods=["GET"])
 def createAccount():
-	return jsonify(m.createAccount())
+	return jsonify(m.create_account())
 
 
 @app.route("/getBalance", methods=["GET"])
 def getBalance():
 	addr = request.get_json().get("address")
-	return jsonify(m.getBalance(addr))
+	return jsonify(m.get_balance(addr))
 
 
 @app.route("/deploy", methods=["GET"])
@@ -231,20 +232,23 @@ def deployContract():
 		return jsonify(
 			{
 				"message": "SUCCESS",
-				"address": m.contractAddress
+				"address": m.contractAddress,
+				"abi": m.contract_abi
 			})
 	m.deploy()
 	return jsonify(
 		{
 			"message": "SUCCESS" if m.contractAddress else "ERROR",
-			"address": m.contractAddress
+			"address": m.contractAddress,
+			"abi": m.contract_abi
 		})
 
 
-@app.route("/getContractAddress", methods=["GET"])
+@app.route("/getContract", methods=["GET"])
 def contract():
 	return jsonify({
-		"address": m.contractAddress
+		"address": m.contractAddress,
+		"abi": m.contract_abi
 	})
 
 

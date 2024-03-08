@@ -21,6 +21,12 @@ import os
 from datetime import datetime
 import traceback
 
+# Blockchain
+from eth_account import Account
+from web3 import Web3
+from web3.middleware import construct_sign_and_send_raw_middleware
+from web3.middleware import geth_poa_middleware
+
 from fedstellar.utils.functions import print_msg_box
 from fedstellar.attacks.aggregation import create_attack
 from fedstellar.learning.aggregators.aggregator import create_malicious_aggregator
@@ -1446,11 +1452,59 @@ class MaliciousNode(Node):
     ##########################################
     #    Experimental Blockchain Handlers    #
     ##########################################
+class Blockchain:
+
+    def __init__(self):
+        self.__web3 = self.__initialize_geth()
+        self.__abi = dict()
+        self.__contract_address = str()
+        self.__rest_header = dict()
+        self.__rpc_header = dict()
+        self.__private_key = str()
+        self.__acc_address = str()
+        self.__rpc_url = "http://172.25.0.104:8545"
+        self.__oracle_url = "http://172.25.0.105:8081"
+        self.__balance_eth = float()
+
+    def __initialize_geth(self):
+        web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
+        web3.middleware_onion.inject(geth_poa_middleware, layer=0)
+        web3.middleware_onion.add(construct_sign_and_send_raw_middleware(self.acc))
+        web3.eth.default_account = self.__acc_address
+        return web3
+
+    def __get_contract_from_oracle(self):
+        r = requests.get(
+            url=f"{self.__oracle_url}/getContract",
+            headers=self.__rest_header
+        )
+        json_response = r.json()
+        self.__abi = json_response.get("abi")
+        self.__contract_address = json_response.get("address")
+
+    def __create_account(self):
+        acc = Account.create()
+        self.__private_key = self.__web3.to_hex(acc.key)
+        self.__acc_address = acc.address
+        r = requests.post(
+            url=f"{self.__oracle_url}/faucet",
+            json={f"address:{self.__acc_address}"},
+            headers=self.__rest_header
+        )
+
+    def __request_balance(self):
+        r = requests.get(
+            url=f"{self.__oracle_url}/getBalance",
+            json={f"address:{self.__acc_address}"},
+            headers=self.__rest_header
+        )
+        json_response = r.json()
+        self.__balance_eth = json_response.get("balance_eth")
+
+
     def __interact_blockchain(self):
-        rpc_url = "http://172.25.0.104:8545"
-        oracle_url = "http://172.25.0.105:8081"
+        pass
         """
-        self.acc = Account.create()
 
         headers = {
             'Content-type': 'application/json',
@@ -1467,7 +1521,6 @@ class MaliciousNode(Node):
             json=faucet_body,
             headers=headers
         )
-
 
 		self.sendEth(acc.address)
 		return {

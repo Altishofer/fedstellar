@@ -643,6 +643,7 @@ def stop_scenario(scenario_name):
     from fedstellar.controller import Controller
 
     Controller.stop_participants()
+    Controller.stop_blockchain()
     scenario_set_status_to_finished(scenario_name)
 
 
@@ -650,6 +651,7 @@ def stop_all_scenarios():
     from fedstellar.controller import Controller
 
     Controller.stop_participants()
+    Controller.stop_blockchain()
     scenario_set_all_status_to_finished()
 
 
