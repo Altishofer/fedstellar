@@ -1456,15 +1456,16 @@ class Blockchain:
 
     def __init__(self):
         self.__web3 = self.__initialize_geth()
-        self.__abi = dict()
-        self.__contract_address = str()
         self.__rest_header = dict()
         self.__rpc_header = dict()
         self.__private_key = str()
         self.__acc_address = str()
         self.__rpc_url = "http://172.25.0.104:8545"
         self.__oracle_url = "http://172.25.0.105:8081"
+
+        # DDos protection?
         self.__balance_eth = float()
+        self.__contract_obj = self.__get_contract_from_oracle()
 
     def __initialize_geth(self):
         web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
@@ -1479,8 +1480,10 @@ class Blockchain:
             headers=self.__rest_header
         )
         json_response = r.json()
-        self.__abi = json_response.get("abi")
-        self.__contract_address = json_response.get("address")
+        return self.__web3.eth.contract(
+            abi=json_response.get("abi"),
+            address=json_response.get("address")
+        )
 
     def __create_account(self):
         acc = Account.create()
@@ -1501,8 +1504,43 @@ class Blockchain:
         json_response = r.json()
         self.__balance_eth = json_response.get("balance_eth")
 
+    def push_opinion(self, ip_address: str, opinion: int):
+        unsigned_trx = self.__contract_obj.constructor().build_transaction(
+            {
+                "chainId": self.__web3.eth.chain_id,
+                "from": self.__acc_address,
+                "nonce": self.__web3.eth.get_transaction_count(
+                    self.__web3.to_checksum_address(self.__acc_address)
+                ),
+                "gasPrice": self.__web3.to_wei("1", "gwei")
+            }
+        )
+        self.__sign_and_deploy(unsigned_trx)
+        unsigned_trx = self.__contract_obj.functions.rateNeighbor(ip_address, opinion).build_transaction(
+            {
+                "chainId": self.__web3.eth.chain_id,
+                "from": self.__acc_address,
+                "nonce": self.__web3.eth.get_transaction_count(
+                    self.__web3.to_checksum_address(self.__acc_address)
+                ),
+                "gasPrice": self.__web3.to_wei("1", "gwei")
+            }
+        )
+        conf = self.__sign_and_deploy(unsigned_trx)
+        return self.__web3.to_json(conf)
 
-    def __interact_blockchain(self):
+    def __sign_and_deploy(self, hash):
+        s_tx = self.__web3.eth.account.sign_transaction(hash, private_key=self.acc.key)
+        sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
+        return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
+
+    def __get_reputation(self, ip_address):
+        number = self.__contract_obj.functions.getReputation(ip_address).call({
+            "from": self.__acc_address,
+            "gasPrice": self.__web3.to_wei("1", "gwei")
+        })
+        return number
+
         pass
         """
 

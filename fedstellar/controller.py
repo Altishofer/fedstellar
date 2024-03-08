@@ -819,13 +819,13 @@ class Controller:
         if additional_participants_files:
             self.config.add_participants_config(additional_participants_files)
 
+        if self.simulation and self.n_validation_nodes:
+            self.start_blockchain_docker()
+
         if self.simulation:
             self.start_nodes_docker()
         else:
             logging.info("Simulation mode is disabled, waiting for nodes to start...")
-
-        if self.simulation and self.n_validation_nodes:
-            self.start_blockchain_docker()
 
     def create_topology(self, matrix=None):
         import numpy as np
