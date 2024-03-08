@@ -575,16 +575,6 @@ class Node(BaseNode):
 			self.__report_status_to_controller()
 			self.__report_resources()
 
-			# TODO: NOT PERMANENT, ONLY FOR TESTING
-			for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
-				ip = f"192.168.0.{digit}"
-
-				logging.info(f"Rating {ip} with {opinion}")
-				self.blockchain.push_opinion(ip, opinion)
-
-				reputation = self.blockchain.get_reputation(ip)
-				logging.info(f"Current reputation of {ip}: {reputation}")
-
 	##########################
 	#         Report         #
 	##########################
@@ -1496,14 +1486,22 @@ class Blockchain:
 		}
 		self.__private_key = str()
 		self.__acc_address = str()
-		self.__rpc_url = "http://localhost:8545"
-		self.__oracle_url = "http://localhost:8081"
+		self.__rpc_url = "http://172.25.0.104:8545"
+		self.__oracle_url = "http://172.25.0.105:8081"
 
 		# DDos protection?
 		self.__balance_eth = float()
 		self.__acc = self.__create_account()
 		self.__web3 = self.__initialize_geth()
 		self.__contract_obj = self.__get_contract_from_oracle()
+
+		# TODO: NOT PERMANENT, ONLY FOR TESTING
+		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
+			ip = f"192.168.0.{digit}"
+			logging.info(f"Rating {ip} with {opinion}")
+			self.push_opinion(ip, opinion)
+			reputation = self.get_reputation(ip)
+			logging.info(f"Current reputation of {ip}: {reputation}")
 
 		print(self.push_opinion("192.168.0.32", 39))
 		print(self.get_reputation("192.168.0.32"))

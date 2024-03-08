@@ -699,9 +699,6 @@ class Controller:
 
     def load_configurations_and_start_nodes(self, additional_participants = None, schema_additional_participants=None):
 
-        if self.simulation and self.n_validation_nodes:
-            self.start_blockchain_docker()
-
         if not self.scenario_name:
             self.scenario_name = f'fedstellar_{self.federation}_{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}'
         # Once the scenario_name is defined, we can update the config_dir
@@ -717,6 +714,10 @@ class Controller:
                 self.scenario_name, self.start_date_scenario
             )
         )
+
+        # Early boot of blockchain
+        if self.simulation and self.n_validation_nodes:
+            self.start_blockchain_docker()
 
         # Get participants configurations
         print("Loading participants configurations...")
@@ -954,6 +955,7 @@ class Controller:
                     fedstellar-net-scenario:
                         ipv4_address: {}
                     fedstellar-net-base:
+                    chainnet:
         """
         )
         participant_template = textwrap.indent(participant_template, " " * 4)
@@ -987,6 +989,7 @@ class Controller:
                     fedstellar-net-scenario:
                         ipv4_address: {}
                     fedstellar-net-base:
+                    chainnet:
         """
         )
         participant_gpu_template = textwrap.indent(participant_gpu_template, " " * 4)
@@ -1003,6 +1006,9 @@ class Controller:
                               gateway: {}     
                 fedstellar-net-base:
                     name: fedstellar-net-base
+                    external: true
+                chainnet:
+                    name: chainnet
                     external: true
         """
         )
