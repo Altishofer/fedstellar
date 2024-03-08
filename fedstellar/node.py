@@ -1488,9 +1488,9 @@ class Blockchain:
 		self.__acc_address = str()
 		self.__rpc_url = "http://172.25.0.104:8545"
 		self.__oracle_url = "http://172.25.0.105:8081"
+		self.__balance_eth = float() # DDos protection?
 
-		# DDos protection?
-		self.__balance_eth = float()
+		self.__wait_for_blockchain()
 		self.__acc = self.__create_account()
 		self.__web3 = self.__initialize_geth()
 		self.__contract_obj = self.__get_contract_from_oracle()
@@ -1498,13 +1498,22 @@ class Blockchain:
 		# TODO: NOT PERMANENT, ONLY FOR TESTING
 		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
 			ip = f"192.168.0.{digit}"
-			logging.info(f"Rating {ip} with {opinion}")
+			logging.info(f"Blockchain: Rating {ip} with {opinion}")
 			self.push_opinion(ip, opinion)
 			reputation = self.get_reputation(ip)
-			logging.info(f"Current reputation of {ip}: {reputation}")
+			logging.info(f"Blockchain: Current reputation of {ip}: {reputation}")
 
-		print(self.push_opinion("192.168.0.32", 39))
-		print(self.get_reputation("192.168.0.32"))
+		logging.info(f"Blockchain: TESTING DONE {'*'*50}")
+
+	def __wait_for_blockchain(self):
+		for _ in range(50):
+			time.sleep(3)
+			r = requests.get(
+				url=f"{self.__oracle_url}/status",
+				headers=self.__header
+			)
+			if r.status_code == 200:
+				return
 
 	def __initialize_geth(self):
 		web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
@@ -1519,6 +1528,7 @@ class Blockchain:
 			headers=self.__header
 		)
 		json_response = r.json()
+		logging.info(f"Blockchain: Contract requested from oracle: {json_response}")
 		return self.__web3.eth.contract(
 			abi=json_response.get("abi"),
 			address=json_response.get("address")
@@ -1534,10 +1544,12 @@ class Blockchain:
 			json={f"address": self.__acc_address},
 			headers=self.__header
 		)
+		logging.info(f"Blockchain: Funds requested from oracle: {r.json}")
 		return acc
 
 	def __request_balance(self):
 		balance = self.__web3.eth.get_balance(self.__acc, "latest")
+		logging.info(f"Blockchain: Current balance of node = {balance}")
 		return {
 			"address": self.__acc_address,
 			"balance_eth": self.__web3.from_wei(balance, "ether")
@@ -1560,13 +1572,15 @@ class Blockchain:
 			}
 		)
 		conf = self.__sign_and_deploy(unsigned_trx)
-		return self.__web3.to_json(conf)
+		# json_reponse = self.__web3.to_json(conf)
+		logging.info(f"Blockchain: Rating {ip_address} with {opinion}")
 
 	def get_reputation(self, ip_address: str) -> int:
 		number = self.__contract_obj.functions.getReputation(ip_address).call({
 			"from": self.__acc_address,
 			"gasPrice": self.__web3.to_wei("1", "gwei")
 		})
+		logging.info(f"Blockchain: Reputation of {ip_address} = {number}")
 		return number
 
 

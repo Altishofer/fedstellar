@@ -394,6 +394,7 @@ class Controller:
 
         docker_compose_template = textwrap.dedent(
             """
+            version: "3.8"
             services:
             {}
         """
@@ -930,6 +931,7 @@ class Controller:
 
         docker_compose_template = textwrap.dedent(
             """
+            version: "3.8"
             services:
             {}
         """
@@ -955,7 +957,7 @@ class Controller:
                     fedstellar-net-scenario:
                         ipv4_address: {}
                     fedstellar-net-base:
-                    chainnet:
+                    proxy:
         """
         )
         participant_template = textwrap.indent(participant_template, " " * 4)
@@ -989,11 +991,11 @@ class Controller:
                     fedstellar-net-scenario:
                         ipv4_address: {}
                     fedstellar-net-base:
-                    chainnet:
         """
         )
         participant_gpu_template = textwrap.indent(participant_gpu_template, " " * 4)
 
+        # TODO: hyphens in network names do NOT work
         network_template = textwrap.dedent(
             """
             networks:
@@ -1007,7 +1009,7 @@ class Controller:
                 fedstellar-net-base:
                     name: fedstellar-net-base
                     external: true
-                chainnet:
+                proxy:
                     name: chainnet
                     external: true
         """
@@ -1069,7 +1071,7 @@ class Controller:
                 json.dump(node, f, indent=4)
         # Start the Docker Compose file, catch error if any
         try:
-            subprocess.check_call(
+            subprocess.check_output(
                 [
                     "docker",
                     "compose",
@@ -1084,6 +1086,7 @@ class Controller:
             logging.error(
                 "Docker Compose failed to start, please check if Docker Compose is installed (https://docs.docker.com/compose/install/) and Docker Engine is running."
             )
+            logging.error(e.output)
             raise e
 
     @classmethod

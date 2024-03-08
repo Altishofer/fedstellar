@@ -16,9 +16,10 @@ CMD exec geth \
     --http.corsdomain="*" \
     --networkid=19265019 \
     --http.vhosts="*" \
-    --netrestrict="172.25.0.0/24" \
     --allow-insecure-unlock \
     --http.port=8545 \
     --rpc.txfeecap 0
+
+# --netrestrict="172.25.0.0/24" \
 
 EXPOSE 8545

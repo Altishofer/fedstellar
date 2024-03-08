@@ -187,6 +187,7 @@ class Geth:
         self.__yaml += textwrap.dedent(f"""
             networks:
               chainnet:
+                name: chainnet
                 driver: bridge
                 ipam:
                   config:

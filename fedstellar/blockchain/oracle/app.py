@@ -17,7 +17,7 @@ class Manager:
 
 	def __init__(self):
 		self.contract_abi = dict()
-		self.wait_until_rpc_up()
+		self.ready = self.wait_until_rpc_up()
 		self.acc = self.unlock()
 		self.web3 = self.initialize_geth()
 		self.contractObj = self.compile_contract()
@@ -45,9 +45,10 @@ class Manager:
 					headers=headers
 				)
 				if r.status_code == 200:
-					return
+					return True
 			except Exception as error:
 				print("RPC-Server not ready - sleep 10")
+		return False
 
 	def initialize_geth(self):
 		node_url = "http://172.25.0.104:8545"
@@ -106,7 +107,6 @@ class Manager:
 		return self.web3.eth.wait_for_transaction_receipt(sent_tx)
 
 	def deploy(self):
-		time.sleep(10)
 		for _ in range(20):
 			self.contractObj = self.compile_contract()
 			tx_hash = self.contractObj.constructor().build_transaction({
@@ -170,7 +170,6 @@ class Manager:
 			"balance_eth": self.web3.from_wei(balance, "ether")
 		}
 
-
 @app.route("/")
 def home():
 	return jsonify({
@@ -229,6 +228,12 @@ def deployContract():
 			"abi": m.contract_abi
 		})
 
+@app.route("/status", methods=["GET"])
+def ready():
+	if not m.ready:
+		return {'message': 'Blockchain does not respond, wait 10'}, 503, {'Content-Type': 'application/json'}
+	else:
+		return {'message': 'Blockchain responded'}, 200, {'Content-Type': 'application/json'}
 
 @app.route("/getContract", methods=["GET"])
 def contract():
