@@ -1492,8 +1492,8 @@ class Blockchain:
 		self.__web3 = self.__initialize_geth()
 		self.__contract_obj = self.__get_contract_from_oracle()
 
-		print(self.__push_opinion("192.168.0.32", 39))
-		print(self.__get_reputation("192.168.0.32"))
+		print(self.push_opinion("192.168.0.32", 39))
+		print(self.get_reputation("192.168.0.32"))
 
 	def __initialize_geth(self):
 		web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
@@ -1532,7 +1532,12 @@ class Blockchain:
 			"balance_eth": self.__web3.from_wei(balance, "ether")
 		}
 
-	def __push_opinion(self, ip_address: str, opinion: int):
+	def __sign_and_deploy(self, trx_hash):
+		s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
+		sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
+		return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
+
+	def push_opinion(self, ip_address: str, opinion: int):
 		unsigned_trx = self.__contract_obj.functions.rateNeighbor(ip_address, opinion).build_transaction(
 			{
 				"chainId": self.__web3.eth.chain_id,
@@ -1546,12 +1551,7 @@ class Blockchain:
 		conf = self.__sign_and_deploy(unsigned_trx)
 		return self.__web3.to_json(conf)
 
-	def __sign_and_deploy(self, trx_hash):
-		s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
-		sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
-		return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
-
-	def __get_reputation(self, ip_address: str) -> int:
+	def get_reputation(self, ip_address: str) -> int:
 		number = self.__contract_obj.functions.getReputation(ip_address).call({
 			"from": self.__acc_address,
 			"gasPrice": self.__web3.to_wei("1", "gwei")
