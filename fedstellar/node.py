@@ -131,6 +131,9 @@ class Node(BaseNode):
 			poisoned_ratio=0,
 			noise_type='gaussian',
 	):
+		# TODO: NOT PERMANENT ONLY FOR TESTING
+		self.blockchain = Blockchain()
+
 		# Super init
 		BaseNode.__init__(self, experiment_name, host, port, encrypt, config)
 
@@ -571,6 +574,16 @@ class Node(BaseNode):
 			self.__change_geo_location()
 			self.__report_status_to_controller()
 			self.__report_resources()
+
+			# TODO: NOT PERMANENT, ONLY FOR TESTING
+			for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
+				ip = f"192.168.0.{digit}"
+
+				logging.info(f"Rating {ip} with {opinion}")
+				self.blockchain.push_opinion(ip, opinion)
+
+				reputation = self.blockchain.get_reputation(ip)
+				logging.info(f"Current reputation of {ip}: {reputation}")
 
 	##########################
 	#         Report         #
