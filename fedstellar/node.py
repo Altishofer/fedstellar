@@ -1500,15 +1500,15 @@ class Blockchain:
 		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
 
 			ip = f"192.168.0.{digit}"
-			logging.info(f"Blockchain: Rating {ip} with {opinion}")
+			print(f"Blockchain: Rating {ip} with {opinion}")
 			self.push_opinion(ip, opinion)
 			time.sleep(1)
 
 			reputation = self.get_reputation(ip)
 			time.sleep(1)
-			logging.info(f"Blockchain: Current reputation of {ip}: {reputation}")
+			print(f"Blockchain: Current reputation of {ip}: {reputation}")
 
-		logging.info(f"Blockchain: TESTING DONE {'*'*50}")
+		print(f"Blockchain: TESTING DONE {'*'*50}")
 
 	def __wait_for_blockchain(self):
 		for _ in range(50):
@@ -1542,7 +1542,7 @@ class Blockchain:
 				)
 				if r.status_code == 200:
 					json_response = r.json()
-					logging.info(f"Blockchain: Contract requested from oracle: {json_response}")
+					print(f"Blockchain: Contract requested from oracle: {json_response}")
 					return self.__web3.eth.contract(
 						abi=json_response.get("abi"),
 						address=json_response.get("address")
@@ -1565,7 +1565,7 @@ class Blockchain:
 					timeout=10
 				)
 				if r.status_code == 200:
-					logging.info(f"Blockchain: Funds requested from oracle: {r.json}")
+					print(f"Blockchain: Funds requested from oracle: {r.json}")
 					return acc
 			except:
 				pass
@@ -1575,7 +1575,7 @@ class Blockchain:
 			time.sleep(3)
 			try:
 				balance = self.__web3.eth.get_balance(self.__acc, "latest")
-				logging.info(f"Blockchain: Current balance of node = {balance}")
+				print(f"Blockchain: Current balance of node = {balance}")
 				return {
 					"address": self.__acc_address,
 					"balance_eth": self.__web3.from_wei(balance, "ether")
@@ -1606,7 +1606,7 @@ class Blockchain:
 		)
 		conf = self.__sign_and_deploy(unsigned_trx)
 		# json_reponse = self.__web3.to_json(conf)
-		logging.info(f"Blockchain: Rating {ip_address} with {opinion}")
+		print(f"Blockchain: Rating {ip_address} with {opinion}")
 
 	def get_reputation(self, ip_address: str) -> int:
 		for _ in range(10):
@@ -1616,7 +1616,7 @@ class Blockchain:
 					"from": self.__acc_address,
 					"gasPrice": self.__web3.to_wei("1", "gwei")
 				})
-				logging.info(f"Blockchain: Reputation of {ip_address} = {number}")
+				print(f"Blockchain: Reputation of {ip_address} = {number}")
 				return number
 			except:
 				pass
