@@ -132,6 +132,7 @@ class Node(BaseNode):
 			noise_type='gaussian',
 	):
 		# TODO: NOT PERMANENT ONLY FOR TESTING
+		print("*"*200)
 		self.blockchain = Blockchain()
 
 		# Super init
@@ -1497,10 +1498,14 @@ class Blockchain:
 
 		# TODO: NOT PERMANENT, ONLY FOR TESTING
 		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
+
 			ip = f"192.168.0.{digit}"
 			logging.info(f"Blockchain: Rating {ip} with {opinion}")
 			self.push_opinion(ip, opinion)
+			time.sleep(1)
+
 			reputation = self.get_reputation(ip)
+			time.sleep(1)
 			logging.info(f"Blockchain: Current reputation of {ip}: {reputation}")
 
 		logging.info(f"Blockchain: TESTING DONE {'*'*50}")
@@ -1508,12 +1513,16 @@ class Blockchain:
 	def __wait_for_blockchain(self):
 		for _ in range(50):
 			time.sleep(3)
-			r = requests.get(
-				url=f"{self.__oracle_url}/status",
-				headers=self.__header
-			)
-			if r.status_code == 200:
-				return
+			try:
+				r = requests.get(
+					url=f"{self.__oracle_url}/status",
+					headers=self.__header,
+					timeout=10
+				)
+				if r.status_code == 200:
+					return
+			except:
+				pass
 
 	def __initialize_geth(self):
 		web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
@@ -1523,42 +1532,66 @@ class Blockchain:
 		return web3
 
 	def __get_contract_from_oracle(self):
-		r = requests.get(
-			url=f"{self.__oracle_url}/getContract",
-			headers=self.__header
-		)
-		json_response = r.json()
-		logging.info(f"Blockchain: Contract requested from oracle: {json_response}")
-		return self.__web3.eth.contract(
-			abi=json_response.get("abi"),
-			address=json_response.get("address")
-		)
+		for _ in range(10):
+			time.sleep(3)
+			try:
+				r = requests.get(
+					url=f"{self.__oracle_url}/getContract",
+					headers=self.__header,
+					timeout=10
+				)
+				if r.status_code == 200:
+					json_response = r.json()
+					logging.info(f"Blockchain: Contract requested from oracle: {json_response}")
+					return self.__web3.eth.contract(
+						abi=json_response.get("abi"),
+						address=json_response.get("address")
+					)
+			except:
+				pass
 
 	def __create_account(self):
 		acc = Account.create()
 		web3 = Web3()
 		self.__private_key = web3.to_hex(acc.key)
 		self.__acc_address = web3.to_checksum_address(acc.address)
-		r = requests.post(
-			url=f"{self.__oracle_url}/faucet",
-			json={f"address": self.__acc_address},
-			headers=self.__header
-		)
-		logging.info(f"Blockchain: Funds requested from oracle: {r.json}")
-		return acc
+		for _ in range(10):
+			time.sleep(3)
+			try:
+				r = requests.post(
+					url=f"{self.__oracle_url}/faucet",
+					json={f"address": self.__acc_address},
+					headers=self.__header,
+					timeout=10
+				)
+				if r.status_code == 200:
+					logging.info(f"Blockchain: Funds requested from oracle: {r.json}")
+					return acc
+			except:
+				pass
 
 	def __request_balance(self):
-		balance = self.__web3.eth.get_balance(self.__acc, "latest")
-		logging.info(f"Blockchain: Current balance of node = {balance}")
-		return {
-			"address": self.__acc_address,
-			"balance_eth": self.__web3.from_wei(balance, "ether")
-		}
+		for _ in range(10):
+			time.sleep(3)
+			try:
+				balance = self.__web3.eth.get_balance(self.__acc, "latest")
+				logging.info(f"Blockchain: Current balance of node = {balance}")
+				return {
+					"address": self.__acc_address,
+					"balance_eth": self.__web3.from_wei(balance, "ether")
+				}
+			except:
+				pass
 
 	def __sign_and_deploy(self, trx_hash):
-		s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
-		sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
-		return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
+		for _ in range(10):
+			time.sleep(3)
+			try:
+				s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
+				sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
+				return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
+			except:
+				pass
 
 	def push_opinion(self, ip_address: str, opinion: int):
 		unsigned_trx = self.__contract_obj.functions.rateNeighbor(ip_address, opinion).build_transaction(
@@ -1576,12 +1609,17 @@ class Blockchain:
 		logging.info(f"Blockchain: Rating {ip_address} with {opinion}")
 
 	def get_reputation(self, ip_address: str) -> int:
-		number = self.__contract_obj.functions.getReputation(ip_address).call({
-			"from": self.__acc_address,
-			"gasPrice": self.__web3.to_wei("1", "gwei")
-		})
-		logging.info(f"Blockchain: Reputation of {ip_address} = {number}")
-		return number
+		for _ in range(10):
+			time.sleep(3)
+			try:
+				number = self.__contract_obj.functions.getReputation(ip_address).call({
+					"from": self.__acc_address,
+					"gasPrice": self.__web3.to_wei("1", "gwei")
+				})
+				logging.info(f"Blockchain: Reputation of {ip_address} = {number}")
+				return number
+			except:
+				pass
 
 
 class RepeatedTimer(object):
