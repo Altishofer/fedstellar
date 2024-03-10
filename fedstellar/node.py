@@ -1497,7 +1497,8 @@ class Blockchain:
 
 		# TODO: NOT PERMANENT, ONLY FOR TESTING
 		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], [i for i in range(5) for _ in range(2)]):
-			print("*"*50, f"BRUTE FORCE TESTING: iteration {digit}", "*"*50)
+			print("*"*50, f"BRUTE FORCE TESTING: iteration {digit}", "*"*50, flush=True)
+			start = time.time()
 			ip = f"192.168.0.{digit}"
 			self.debug_addStr(str(digit))
 			self.debug_getStrLst()
@@ -1505,6 +1506,7 @@ class Blockchain:
 			self.__request_balance()
 			reputation = self.get_reputation(ip)
 			raw_reputation = self.get_raw_reputation(ip)
+			print("*"*20, f"BRUTE FORCE TESTING: iteration {digit} finished after {int(time.time() - start)}sec", "*"*20, flush=True)
 
 		print("*" * 50, f"BRUTE FORCE TESTING: FINISHED", "*" * 50)
 
@@ -1602,8 +1604,9 @@ class Blockchain:
 					}
 				)
 				conf = self.__sign_and_deploy(unsigned_trx)
-				# json_reponse = self.__web3.to_json(conf)
+				json_reponse = self.__web3.to_json(conf)
 				print(f"Blockchain: Rating {ip_address} with {opinion}")
+				return json_reponse
 			except Exception as e:
 				print(f"EXCEPTION: push_opinion({ip_address}, {opinion}) => {e}")
 				time.sleep(2)
@@ -1662,8 +1665,9 @@ class Blockchain:
 					}
 				)
 				conf = self.__sign_and_deploy(unsigned_trx)
-				# json_reponse = self.__web3.to_json(conf)
+				json_reponse = self.__web3.to_json(conf)
 				print(f"Blockchain: added '{string}' to lst on blockchain")
+				return json_reponse
 			except Exception as e:
 				print(f"EXCEPTION: debug_addStr({string}) => {e}")
 				time.sleep(2)
