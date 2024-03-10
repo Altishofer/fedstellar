@@ -1496,19 +1496,6 @@ class Blockchain:
 		self.__contract_obj = self.__get_contract_from_oracle()
 
 		# TODO: NOT PERMANENT, ONLY FOR TESTING
-		for opinion, iteration in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
-			print("*"*50, f"BRUTE FORCE TESTING: iteration {iteration}", "*"*50, flush=True)
-			start = time.time()
-			ip = f"192.168.0.{iteration % 5}"
-			self.debug_addStr(str(iteration % 5))
-			self.debug_getStrLst()
-			self.push_opinion(ip, opinion)
-			self.__request_balance()
-			reputation = self.get_reputation(ip)
-			raw_reputation = self.get_raw_reputation(ip)
-			print(f"BLOCKCHAIN: iteration {iteration} finished after {round(time.time() - start, 2)}s", flush=True)
-
-		print("*" * 50, f"BRUTE FORCE TESTING: FINISHED", "*" * 50, flush=True)
 
 	def __wait_for_blockchain(self):
 		for _ in range(20):
@@ -1671,3 +1658,21 @@ class Blockchain:
 			except Exception as e:
 				print(f"EXCEPTION: debug_addStr({string}) => {e}")
 				time.sleep(2)
+
+	def __testing(self):
+		for opinion, iteration in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
+
+			print("*"*50, f"BRUTE FORCE TESTING: iteration {iteration}", "*"*50, flush=True)
+			start = time.time()
+			ip = f"192.168.0.{iteration % 5}"
+
+			self.debug_addStr(str(iteration % 5))
+			self.debug_getStrLst()
+			self.push_opinion(ip, opinion)
+			self.__request_balance()
+			self.get_reputation(ip)
+			self.get_raw_reputation(ip)
+
+			print(f"BLOCKCHAIN: iteration {iteration} finished after {round(time.time() - start, 2)}s", flush=True)
+
+		print("*" * 50, f"BRUTE FORCE TESTING: FINISHED", "*" * 50, flush=True)
