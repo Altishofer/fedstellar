@@ -99,7 +99,7 @@ contract Faucet {
             uint[] memory participant_history = direct_neighbors[participant][target_ip].history;
             uint participant_history_length = participant_history.length;
 
-            if (participant == msg.sender || participant_history_length == 0){
+            if (participant_history_length == 0){
                 continue;
             }
 
