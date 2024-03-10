@@ -132,7 +132,6 @@ class Node(BaseNode):
 			noise_type='gaussian',
 	):
 		# TODO: NOT PERMANENT ONLY FOR TESTING
-		print("*"*200)
 		self.blockchain = Blockchain()
 
 		# Super init
@@ -1497,7 +1496,7 @@ class Blockchain:
 		self.__contract_obj = self.__get_contract_from_oracle()
 
 		# TODO: NOT PERMANENT, ONLY FOR TESTING
-		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
+		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], [i for i in range(5) for _ in range(2)]):
 			print("*"*50, f"BRUTE FORCE TESTING: iteration {digit}", "*"*50)
 			ip = f"192.168.0.{digit}"
 			self.get_debug_addStr(str(digit))
@@ -1507,7 +1506,7 @@ class Blockchain:
 			reputation = self.get_reputation(ip)
 			raw_reputation = self.get_raw_reputation(ip)
 
-		print(f"Blockchain: TESTING DONE {'*'*50}")
+		print("*" * 50, f"BRUTE FORCE TESTING: FINISHED", "*" * 50)
 
 	def __wait_for_blockchain(self):
 		for _ in range(20):
@@ -1541,7 +1540,7 @@ class Blockchain:
 				)
 				if r.status_code == 200:
 					json_response = r.json()
-					print(f"Blockchain: Contract requested from oracle: {json_response}")
+					print(f"Blockchain: Contract requested from oracle at address {json_response.get('address')}")
 					return self.__web3.eth.contract(
 						abi=json_response.get("abi"),
 						address=json_response.get("address")
@@ -1573,10 +1572,11 @@ class Blockchain:
 				pass
 
 	def __request_balance(self):
-		for _ in range(1):
+		for _ in range(3):
 			try:
-				balance = self.__web3.eth.get_balance(self.__acc, "latest")
-				print(f"Blockchain: Current balance of node = {balance}")
+				balance = self.__web3.eth.get_balance(self.__acc_address, "latest")
+				balance_eth = self.__web3.from_wei(balance, "ether")
+				print(f"Blockchain: Current balance of node = {balance_eth} ETH")
 				return {
 					"address": self.__acc_address,
 					"balance_eth": self.__web3.from_wei(balance, "ether")

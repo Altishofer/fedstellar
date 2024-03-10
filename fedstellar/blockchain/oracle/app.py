@@ -37,7 +37,6 @@ class Manager:
 		}
 		url = "http://172.25.0.104:8545"
 		for _ in range(6):
-			time.sleep(10)
 			try:
 				r = requests.post(
 					url=url,
@@ -48,6 +47,7 @@ class Manager:
 					return True
 			except Exception as error:
 				print("RPC-Server not ready - sleep 10")
+				time.sleep(10)
 		return False
 
 	def initialize_geth(self):
