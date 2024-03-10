@@ -1496,19 +1496,19 @@ class Blockchain:
 		self.__contract_obj = self.__get_contract_from_oracle()
 
 		# TODO: NOT PERMANENT, ONLY FOR TESTING
-		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], [i for i in range(5) for _ in range(2)]):
-			print("*"*50, f"BRUTE FORCE TESTING: iteration {digit}", "*"*50, flush=True)
+		for opinion, iteration in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
+			print("*"*50, f"BRUTE FORCE TESTING: iteration {iteration}", "*"*50, flush=True)
 			start = time.time()
-			ip = f"192.168.0.{digit}"
-			self.debug_addStr(str(digit))
+			ip = f"192.168.0.{iteration % 5}"
+			self.debug_addStr(str(iteration % 5))
 			self.debug_getStrLst()
 			self.push_opinion(ip, opinion)
 			self.__request_balance()
 			reputation = self.get_reputation(ip)
 			raw_reputation = self.get_raw_reputation(ip)
-			print("*"*20, f"BRUTE FORCE TESTING: iteration {digit} finished after {int(time.time() - start)}sec", "*"*20, flush=True)
+			print(f"BLOCKCHAIN: iteration {iteration} finished after {round(time.time() - start, 2)}s", flush=True)
 
-		print("*" * 50, f"BRUTE FORCE TESTING: FINISHED", "*" * 50)
+		print("*" * 50, f"BRUTE FORCE TESTING: FINISHED", "*" * 50, flush=True)
 
 	def __wait_for_blockchain(self):
 		for _ in range(20):
