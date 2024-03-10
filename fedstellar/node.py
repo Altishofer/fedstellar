@@ -1602,17 +1602,18 @@ class Blockchain:
 	def get_reputation(self, ip_address: str) -> int:
 		for _ in range(3):
 			try:
-				number = self.__contract_obj.functions.getReputation(ip_address).call({
+				reputation = self.__contract_obj.functions.getReputation(ip_address).call({
 					"from": self.__acc_address,
 					"gasPrice": self.__web3.to_wei("1", "gwei")
 				})
-				print(f"Blockchain: Reputation of {ip_address} = {number}")
-				return number
+				scaled_reputation = int(reputation / 100)
+				print(f"Blockchain: Reputation of {ip_address} = {scaled_reputation}%")
+				return scaled_reputation
 			except Exception as e:
 				print(f"EXCEPTION: get_reputation({ip_address}) => {e}")
 				time.sleep(2)
 
-	def get_raw_reputation(self, ip_address: str) -> int:
+	def get_raw_reputation(self, ip_address: str) -> list:
 		for _ in range(3):
 			try:
 				numbers = self.__contract_obj.functions.getLastBasicReputation(ip_address).call({
@@ -1624,7 +1625,6 @@ class Blockchain:
 			except Exception as e:
 				print(f"EXCEPTION: get_raw_reputation({ip_address}) => {e}")
 				time.sleep(2)
-
 
 	def debug_getStrLst(self) -> list:
 		for _ in range(3):

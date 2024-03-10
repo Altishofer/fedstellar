@@ -5,82 +5,73 @@ contract Faucet {
     uint256 public store;
     string[] public strList;
 
-
     address[] public participants;
-    // msg.sender => registered
     mapping(address => bool) public inParticipants;
 
-    // msg.sender => (ip => history[)
     struct Node {
         uint[] history;
     }
 
     mapping(address => mapping(string => Node)) private direct_neighbors;
 
-    function rateNeighbor(string memory target_ip, uint opinion) external returns (bool){
+    function rateNeighbor(string memory target_ip, uint opinion) external returns (bool) {
+        require(opinion <= 100, "Opinion should be less than or equal to 100");
+        require(opinion >= 0, "Opinion should be greater than or equal to 0");
 
-        if (!inParticipants[msg.sender]){
+        if (!inParticipants[msg.sender]) {
             participants.push(msg.sender);
             inParticipants[msg.sender] = true;
         }
 
         Node storage neighbor = direct_neighbors[msg.sender][target_ip];
-
-        if (100 < opinion || opinion < 0){
-            opinion = 50;
-        }
-
         neighbor.history.push(opinion);
         return true;
     }
 
-    function getReputation(string memory target_ip) external view returns (uint){
+    function getReputation(string memory target_ip) external view returns (uint) {
+        int MULTIPLIER = 1000000;
 
-        uint[] memory opinions = new uint[](participants.length);
+        int[] memory opinions = new int[](participants.length);
 
-        for (uint i; i<participants.length; i++){
-
+        for (uint i = 0; i < participants.length; i++) {
             address participant = participants[i];
-
             uint[] memory participant_history = direct_neighbors[participant][target_ip].history;
             uint participant_history_length = participant_history.length;
 
-            if (participant == msg.sender || participant_history_length == 0){
+            if (participant == msg.sender || participant_history_length == 0) {
                 continue;
             }
 
-            uint sum;
-            for (
-                int j = int(participant_history_length) - 1;
-                j >= 0 && j >= int(participant_history_length) - 3;
-                j--
-            ) {
-                sum += participant_history[uint(j)];
+            int sum;
+            for (int j = int(participant_history_length) - 1; j >= 0 && j >= int(participant_history_length) - 3; j--) {
+                sum += int(participant_history[uint(j)]) * MULTIPLIER;
             }
 
             uint[] memory callee_opinion = direct_neighbors[msg.sender][target_ip].history;
-            uint trust_factor = 50;
+            int trust_factor = 50;
 
-            if (callee_opinion.length > 0){
-                trust_factor = callee_opinion[callee_opinion.length - 1];
+            if (callee_opinion.length > 0) {
+                trust_factor = int(callee_opinion[callee_opinion.length - 1]);
             }
 
-            opinions[i] = sum / 3 * trust_factor;
+            trust_factor *= MULTIPLIER;
+
+            opinions[i] = sum / 3 * trust_factor / MULTIPLIER / MULTIPLIER;
         }
 
-        uint n_opinions;
-        uint sum_opinions;
-        for (uint i; i < participants.length; i++){
-            uint opinion = opinions[i];
-            if (opinion > 0){
-                sum_opinions += opinion;
+        int n_opinions;
+        int sum_opinions;
+        for (uint i = 0; i < participants.length; i++) {
+            int opinion = opinions[i];
+            if (opinion > 0) {
+                sum_opinions += opinion * MULTIPLIER;
                 n_opinions++;
             }
         }
 
         uint final_opinion;
-        if (n_opinions != 0){
-            final_opinion = sum_opinions / n_opinions;
+        if (n_opinions != 0 && sum_opinions != 0) {
+            final_opinion = uint(sum_opinions / n_opinions / MULTIPLIER);
         } else {
             final_opinion = 50;
         }
@@ -88,18 +79,15 @@ contract Faucet {
         return final_opinion;
     }
 
-    function getLastBasicReputation(string memory target_ip) external view returns (uint[] memory){
-
+    function getLastBasicReputation(string memory target_ip) external view returns (uint[] memory) {
         uint[] memory opinions = new uint[](participants.length);
 
-        for (uint i; i<participants.length; i++){
-
+        for (uint i = 0; i < participants.length; i++) {
             address participant = participants[i];
-
             uint[] memory participant_history = direct_neighbors[participant][target_ip].history;
             uint participant_history_length = participant_history.length;
 
-            if (participant_history_length == 0){
+            if (participant_history_length == 0) {
                 continue;
             }
 
