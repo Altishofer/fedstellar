@@ -1489,7 +1489,7 @@ class Blockchain:
 		self.__acc_address = str()
 		self.__rpc_url = "http://172.25.0.104:8545"
 		self.__oracle_url = "http://172.25.0.105:8081"
-		self.__balance_eth = float() # DDos protection?
+		self.__balance = float() # DDos protection?
 
 		self.__wait_for_blockchain()
 		self.__acc = self.__create_account()
@@ -1498,21 +1498,19 @@ class Blockchain:
 
 		# TODO: NOT PERMANENT, ONLY FOR TESTING
 		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
-
+			print("*"*50, f"BRUTE FORCE TESTING: iteration {digit}", "*"*50)
 			ip = f"192.168.0.{digit}"
-			print(f"Blockchain: Rating {ip} with {opinion}")
+			self.get_debug_addStr(str(digit))
+			self.get_debug_getStrLst()
 			self.push_opinion(ip, opinion)
-			time.sleep(1)
-
+			self.__request_balance()
 			reputation = self.get_reputation(ip)
-			time.sleep(1)
-			print(f"Blockchain: Current reputation of {ip}: {reputation}")
+			raw_reputation = self.get_raw_reputation(ip)
 
 		print(f"Blockchain: TESTING DONE {'*'*50}")
 
 	def __wait_for_blockchain(self):
-		for _ in range(50):
-			time.sleep(3)
+		for _ in range(20):
 			try:
 				r = requests.get(
 					url=f"{self.__oracle_url}/status",
@@ -1521,7 +1519,9 @@ class Blockchain:
 				)
 				if r.status_code == 200:
 					return
-			except:
+			except Exception as e:
+				print(f"EXCEPTION: wait_for_blockchain => {e}")
+				time.sleep(3)
 				pass
 
 	def __initialize_geth(self):
@@ -1532,8 +1532,7 @@ class Blockchain:
 		return web3
 
 	def __get_contract_from_oracle(self):
-		for _ in range(10):
-			time.sleep(3)
+		for _ in range(3):
 			try:
 				r = requests.get(
 					url=f"{self.__oracle_url}/getContract",
@@ -1547,7 +1546,9 @@ class Blockchain:
 						abi=json_response.get("abi"),
 						address=json_response.get("address")
 					)
-			except:
+			except Exception as e:
+				print(f"EXCEPTION: get_contract_from_oracle => {e}")
+				time.sleep(2)
 				pass
 
 	def __create_account(self):
@@ -1555,8 +1556,7 @@ class Blockchain:
 		web3 = Web3()
 		self.__private_key = web3.to_hex(acc.key)
 		self.__acc_address = web3.to_checksum_address(acc.address)
-		for _ in range(10):
-			time.sleep(3)
+		for _ in range(3):
 			try:
 				r = requests.post(
 					url=f"{self.__oracle_url}/faucet",
@@ -1567,12 +1567,13 @@ class Blockchain:
 				if r.status_code == 200:
 					print(f"Blockchain: Funds requested from oracle: {r.json}")
 					return acc
-			except:
+			except Exception as e:
+				print(f"EXCEPTION: create_account => {e}")
+				time.sleep(2)
 				pass
 
 	def __request_balance(self):
-		for _ in range(10):
-			time.sleep(3)
+		for _ in range(1):
 			try:
 				balance = self.__web3.eth.get_balance(self.__acc, "latest")
 				print(f"Blockchain: Current balance of node = {balance}")
@@ -1580,17 +1581,20 @@ class Blockchain:
 					"address": self.__acc_address,
 					"balance_eth": self.__web3.from_wei(balance, "ether")
 				}
-			except:
+			except Exception as e:
+				print(f"EXCEPTION: request_balance => {e}")
+				time.sleep(2)
 				pass
 
 	def __sign_and_deploy(self, trx_hash):
-		for _ in range(10):
-			time.sleep(3)
+		for _ in range(3):
 			try:
 				s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
 				sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
 				return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
-			except:
+			except Exception as e:
+				print(f"EXCEPTION: sign_and_deploy => {trx_hash} resulted in {e}")
+				time.sleep(2)
 				pass
 
 	def push_opinion(self, ip_address: str, opinion: int):
@@ -1609,8 +1613,7 @@ class Blockchain:
 		print(f"Blockchain: Rating {ip_address} with {opinion}")
 
 	def get_reputation(self, ip_address: str) -> int:
-		for _ in range(10):
-			time.sleep(3)
+		for _ in range(3):
 			try:
 				number = self.__contract_obj.functions.getReputation(ip_address).call({
 					"from": self.__acc_address,
@@ -1618,31 +1621,51 @@ class Blockchain:
 				})
 				print(f"Blockchain: Reputation of {ip_address} = {number}")
 				return number
-			except:
+			except Exception as e:
+				print(f"EXCEPTION: get_reputation({ip_address}) => {e}")
+				time.sleep(2)
+				pass
+
+	def get_raw_reputation(self, ip_address: str) -> int:
+		for _ in range(3):
+			try:
+				numbers = self.__contract_obj.functions.getLastBasicReputation(ip_address).call({
+					"from": self.__acc_address,
+					"gasPrice": self.__web3.to_wei("1", "gwei")
+				})
+				print(f"Blockchain: Raw reputation of {ip_address} = {numbers}")
+				return numbers
+			except Exception as e:
+				print(f"EXCEPTION: get_raw_reputation({ip_address}) => {e}")
+				time.sleep(2)
 				pass
 
 
-class RepeatedTimer(object):
-	def __init__(self, interval, function, *args, **kwargs):
-		self._timer = None
-		self.interval = interval
-		self.function = function
-		self.args = args
-		self.kwargs = kwargs
-		self.is_running = False
-		self.start()
+	def get_debug_getStrLst(self) -> list:
+		for _ in range(3):
+			try:
+				strLst = self.__contract_obj.functions.getStrLst().call({
+					"from": self.__acc_address,
+					"gasPrice": self.__web3.to_wei("1", "gwei")
+				})
+				print(f"Blockchain: getStrLst => {strLst}")
+				return strLst
+			except Exception as e:
+				print(f"EXCEPTION: debug_getStrLst() => {e}")
+				time.sleep(2)
+				pass
 
-	def _run(self):
-		self.is_running = False
-		self.start()
-		self.function(*self.args, **self.kwargs)
-
-	def start(self):
-		if not self.is_running:
-			self._timer = threading.Timer(self.interval, self._run)
-			self._timer.start()
-			self.is_running = True
-
-	def stop(self):
-		self._timer.cancel()
-		self.is_running = False
+	def get_debug_addStr(self, string) -> list:
+		unsigned_trx = self.__contract_obj.functions.addStr(string).build_transaction(
+			{
+				"chainId": self.__web3.eth.chain_id,
+				"from": self.__acc_address,
+				"nonce": self.__web3.eth.get_transaction_count(
+					self.__web3.to_checksum_address(self.__acc_address)
+				),
+				"gasPrice": self.__web3.to_wei("1", "gwei")
+			}
+		)
+		conf = self.__sign_and_deploy(unsigned_trx)
+		# json_reponse = self.__web3.to_json(conf)
+		print(f"Blockchain: added '{string}' to lst on blockchain")
