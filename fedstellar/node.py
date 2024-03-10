@@ -1495,7 +1495,9 @@ class Blockchain:
 		self.__web3 = self.__initialize_geth()
 		self.__contract_obj = self.__get_contract_from_oracle()
 
-		# TODO: NOT PERMANENT, ONLY FOR TESTING
+		# TODO: remove before pushing to prod
+		self.__testing()
+
 
 	def __wait_for_blockchain(self):
 		for _ in range(20):
@@ -1551,7 +1553,7 @@ class Blockchain:
 					timeout=10
 				)
 				if r.status_code == 200:
-					print(f"Blockchain: Funds requested from oracle: {r.json}")
+					print(f"Blockchain: Funds requested from oracle: {r.json()}")
 					return acc
 			except Exception as e:
 				print(f"EXCEPTION: create_account() => {e}")
@@ -1575,7 +1577,6 @@ class Blockchain:
 		s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
 		sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
 		return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
-
 
 	def push_opinion(self, ip_address: str, opinion: int):
 		for _ in range(3):
