@@ -45,7 +45,7 @@ class Manager:
 				)
 				if r.status_code == 200:
 					return True
-			except Exception as error:
+			except Exception as e:
 				print("RPC-Server not ready - sleep 10")
 				time.sleep(10)
 		return False
@@ -88,18 +88,24 @@ class Manager:
 		return Account.from_key("0x" + private_key)
 
 	def send_eth(self, address):
-		address = self.web3.to_checksum_address(address)
-		tx = {
-			"chainId": self.web3.eth.chain_id,
-			"from": self.acc.address,
-			"value": self.web3.to_wei("500", "ether"),
-			"to": self.web3.to_checksum_address(address),
-			"nonce": self.web3.eth.get_transaction_count(self.acc.address),
-			"gasPrice": self.web3.to_wei("1", "gwei"),
-			"gas": self.web3.to_wei("22000", "wei")
-		}
-		tx_receipt = self.sign_and_deploy(tx)
-		return f"SUCESS: {tx_receipt}"
+		for _ in range(3):
+			try:
+				address = self.web3.to_checksum_address(address)
+				tx = {
+					"chainId": self.web3.eth.chain_id,
+					"from": self.acc.address,
+					"value": self.web3.to_wei("500", "ether"),
+					"to": self.web3.to_checksum_address(address),
+					"nonce": self.web3.eth.get_transaction_count(self.acc.address),
+					"gasPrice": self.web3.to_wei("1", "gwei"),
+					"gas": self.web3.to_wei("22000", "wei")
+				}
+				tx_receipt = self.sign_and_deploy(tx)
+				time.sleep(4)
+				return f"SUCESS: {tx_receipt}"
+			except Exception as e:
+				print(f"EXCEPTION: send_eth({address}) => {e}")
+				time.sleep(2)
 
 	def sign_and_deploy(self, hash):
 		s_tx = self.web3.eth.account.sign_transaction(hash, private_key=self.acc.key)

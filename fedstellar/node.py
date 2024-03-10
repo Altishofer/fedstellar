@@ -1499,8 +1499,8 @@ class Blockchain:
 		for opinion, digit in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], [i for i in range(5) for _ in range(2)]):
 			print("*"*50, f"BRUTE FORCE TESTING: iteration {digit}", "*"*50)
 			ip = f"192.168.0.{digit}"
-			self.get_debug_addStr(str(digit))
-			self.get_debug_getStrLst()
+			self.debug_addStr(str(digit))
+			self.debug_getStrLst()
 			self.push_opinion(ip, opinion)
 			self.__request_balance()
 			reputation = self.get_reputation(ip)
@@ -1521,7 +1521,6 @@ class Blockchain:
 			except Exception as e:
 				print(f"EXCEPTION: wait_for_blockchain => {e}")
 				time.sleep(3)
-				pass
 
 	def __initialize_geth(self):
 		web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
@@ -1546,9 +1545,8 @@ class Blockchain:
 						address=json_response.get("address")
 					)
 			except Exception as e:
-				print(f"EXCEPTION: get_contract_from_oracle => {e}")
+				print(f"EXCEPTION: get_contract_from_oracle() => {e}")
 				time.sleep(2)
-				pass
 
 	def __create_account(self):
 		acc = Account.create()
@@ -1567,9 +1565,8 @@ class Blockchain:
 					print(f"Blockchain: Funds requested from oracle: {r.json}")
 					return acc
 			except Exception as e:
-				print(f"EXCEPTION: create_account => {e}")
+				print(f"EXCEPTION: create_account() => {e}")
 				time.sleep(2)
-				pass
 
 	def __request_balance(self):
 		for _ in range(3):
@@ -1582,35 +1579,34 @@ class Blockchain:
 					"balance_eth": self.__web3.from_wei(balance, "ether")
 				}
 			except Exception as e:
-				print(f"EXCEPTION: request_balance => {e}")
+				print(f"EXCEPTION: request_balance() => {e}")
 				time.sleep(2)
-				pass
 
 	def __sign_and_deploy(self, trx_hash):
-		for _ in range(3):
-			try:
-				s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
-				sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
-				return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
-			except Exception as e:
-				print(f"EXCEPTION: sign_and_deploy => {trx_hash} resulted in {e}")
-				time.sleep(2)
-				pass
+		s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
+		sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
+		return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
+
 
 	def push_opinion(self, ip_address: str, opinion: int):
-		unsigned_trx = self.__contract_obj.functions.rateNeighbor(ip_address, opinion).build_transaction(
-			{
-				"chainId": self.__web3.eth.chain_id,
-				"from": self.__acc_address,
-				"nonce": self.__web3.eth.get_transaction_count(
-					self.__web3.to_checksum_address(self.__acc_address)
-				),
-				"gasPrice": self.__web3.to_wei("1", "gwei")
-			}
-		)
-		conf = self.__sign_and_deploy(unsigned_trx)
-		# json_reponse = self.__web3.to_json(conf)
-		print(f"Blockchain: Rating {ip_address} with {opinion}")
+		for _ in range(3):
+			try:
+				unsigned_trx = self.__contract_obj.functions.rateNeighbor(ip_address, opinion).build_transaction(
+					{
+						"chainId": self.__web3.eth.chain_id,
+						"from": self.__acc_address,
+						"nonce": self.__web3.eth.get_transaction_count(
+							self.__web3.to_checksum_address(self.__acc_address)
+						),
+						"gasPrice": self.__web3.to_wei("1", "gwei")
+					}
+				)
+				conf = self.__sign_and_deploy(unsigned_trx)
+				# json_reponse = self.__web3.to_json(conf)
+				print(f"Blockchain: Rating {ip_address} with {opinion}")
+			except Exception as e:
+				print(f"EXCEPTION: push_opinion({ip_address}, {opinion}) => {e}")
+				time.sleep(2)
 
 	def get_reputation(self, ip_address: str) -> int:
 		for _ in range(3):
@@ -1624,7 +1620,6 @@ class Blockchain:
 			except Exception as e:
 				print(f"EXCEPTION: get_reputation({ip_address}) => {e}")
 				time.sleep(2)
-				pass
 
 	def get_raw_reputation(self, ip_address: str) -> int:
 		for _ in range(3):
@@ -1638,10 +1633,9 @@ class Blockchain:
 			except Exception as e:
 				print(f"EXCEPTION: get_raw_reputation({ip_address}) => {e}")
 				time.sleep(2)
-				pass
 
 
-	def get_debug_getStrLst(self) -> list:
+	def debug_getStrLst(self) -> list:
 		for _ in range(3):
 			try:
 				strLst = self.__contract_obj.functions.getStrLst().call({
@@ -1653,19 +1647,23 @@ class Blockchain:
 			except Exception as e:
 				print(f"EXCEPTION: debug_getStrLst() => {e}")
 				time.sleep(2)
-				pass
 
-	def get_debug_addStr(self, string) -> list:
-		unsigned_trx = self.__contract_obj.functions.addStr(string).build_transaction(
-			{
-				"chainId": self.__web3.eth.chain_id,
-				"from": self.__acc_address,
-				"nonce": self.__web3.eth.get_transaction_count(
-					self.__web3.to_checksum_address(self.__acc_address)
-				),
-				"gasPrice": self.__web3.to_wei("1", "gwei")
-			}
-		)
-		conf = self.__sign_and_deploy(unsigned_trx)
-		# json_reponse = self.__web3.to_json(conf)
-		print(f"Blockchain: added '{string}' to lst on blockchain")
+	def debug_addStr(self, string):
+		for _ in range(3):
+			try:
+				unsigned_trx = self.__contract_obj.functions.addStr(string).build_transaction(
+					{
+						"chainId": self.__web3.eth.chain_id,
+						"from": self.__acc_address,
+						"nonce": self.__web3.eth.get_transaction_count(
+							self.__web3.to_checksum_address(self.__acc_address)
+						),
+						"gasPrice": self.__web3.to_wei("1", "gwei")
+					}
+				)
+				conf = self.__sign_and_deploy(unsigned_trx)
+				# json_reponse = self.__web3.to_json(conf)
+				print(f"Blockchain: added '{string}' to lst on blockchain")
+			except Exception as e:
+				print(f"EXCEPTION: debug_addStr({string}) => {e}")
+				time.sleep(2)
