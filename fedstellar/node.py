@@ -1553,7 +1553,7 @@ class Blockchain:
 					timeout=10
 				)
 				if r.status_code == 200:
-					print(f"Blockchain: Funds requested from oracle: {r.json()}")
+					print(f"Blockchain: Funds successfully requested from oracle")
 					return acc
 			except Exception as e:
 				print(f"EXCEPTION: create_account() => {e}")
@@ -1663,7 +1663,7 @@ class Blockchain:
 	def __testing(self):
 		for opinion, iteration in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
 
-			print("*"*50, f"BRUTE FORCE TESTING: iteration {iteration}", "*"*50, flush=True)
+			print("*"*50, f"BLOCKCHAIN TESTING: iteration {iteration}", "*"*50, flush=True)
 			start = time.time()
 			ip = f"192.168.0.{iteration % 5}"
 
@@ -1676,4 +1676,4 @@ class Blockchain:
 
 			print(f"BLOCKCHAIN: iteration {iteration} finished after {round(time.time() - start, 2)}s", flush=True)
 
-		print("*" * 50, f"BRUTE FORCE TESTING: FINISHED", "*" * 50, flush=True)
+		print("*" * 50, f"BLOCKCHAIN TESTING: FINISHED", "*" * 50, flush=True)

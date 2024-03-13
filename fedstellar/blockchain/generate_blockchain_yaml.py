@@ -11,7 +11,7 @@ w3 = Web3()
 
 class Geth:
 
-    def __init__(self, n_validator=2, config_dir=".", input_dir="."):
+    def __init__(self, n_validator=3, config_dir=".", input_dir="."):
         self.__input_dir = input_dir
         self.__config_dir = config_dir
         self.__boot_id = None
@@ -29,19 +29,8 @@ class Geth:
         self.__export_config()
 
     def __setup_dir(self) -> None:
-        current_path = os.path.dirname(os.path.abspath(__file__))
         if not os.path.exists(self.__config_dir):
             os.makedirs(self.__config_dir, exist_ok=True)
-
-        source = os.path.join(current_path, "geth", "genesis.json")
-        shutil.copy(source, os.path.join(self.__config_dir, "genesis.json"))
-
-        source = os.path.join(current_path, "chaincode", "faucet.sol")
-        shutil.copy(source, os.path.join(self.__config_dir, "faucet.sol"))
-
-        # self.__copy_dir("chaincode")
-        # self.__copy_dir("oracle")
-        # self.__copy_dir("geth")
 
     def __copy_dir(self, source):
         curr_path = os.path.dirname(os.path.abspath(__file__))
@@ -205,8 +194,15 @@ class Geth:
         self.__add_network()
         with open(f"{self.__config_dir}/blockchain-docker-compose.yml", "w+") as file:
             file.write(self.__yaml)
-        with open(f"{self.__config_dir}/genesis.json", "w+") as file:
+
+        with open(f"{self.__input_dir}/geth/genesis.json", "w+") as file:
             json.dump(self.__genesis, file, indent=4)
+
+        source = os.path.join(self.__input_dir, "geth", "genesis.json")
+        shutil.copy(source, os.path.join(self.__config_dir, "genesis.json"))
+
+        source = os.path.join(self.__input_dir, "chaincode", "faucet.sol")
+        shutil.copy(source, os.path.join(self.__config_dir, "faucet.sol"))
 
 
 if __name__ == "__main__":

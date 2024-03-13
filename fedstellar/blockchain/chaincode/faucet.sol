@@ -48,7 +48,7 @@ contract Faucet {
             }
 
             uint[] memory callee_opinion = direct_neighbors[msg.sender][target_ip].history;
-            int trust_factor = 50;
+            int trust_factor = 100;
 
             if (callee_opinion.length > 0) {
                 trust_factor = int(callee_opinion[callee_opinion.length - 1]);

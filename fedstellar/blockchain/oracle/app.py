@@ -44,6 +44,7 @@ class Manager:
 					headers=headers
 				)
 				if r.status_code == 200:
+					print(f"SUCCESS: RPC node up and running")
 					return True
 			except Exception as e:
 				print("RPC-Server not ready - sleep 10")
@@ -56,6 +57,7 @@ class Manager:
 		web3.middleware_onion.inject(geth_poa_middleware, layer=0)
 		web3.middleware_onion.add(construct_sign_and_send_raw_middleware(self.acc))
 		web3.eth.default_account = self.acc.address
+		print(f"SUCCESS: Account created at {self.acc.address}")
 		return web3
 
 	def compile_contract(self):
@@ -81,6 +83,7 @@ class Manager:
 			json.dump(compiled_sol, file)
 		contract_bytecode = compiled_sol["contracts"]["faucet.sol"]["Faucet"]["evm"]["bytecode"]["object"]
 		self.contract_abi = json.loads(compiled_sol["contracts"]["faucet.sol"]["Faucet"]["metadata"])["output"]["abi"]
+		print(f"SUCCESS: Solidity files compiled and bytecode ready")
 		return self.web3.eth.contract(abi=self.contract_abi, bytecode=contract_bytecode)
 
 	def unlock(self):
@@ -90,7 +93,6 @@ class Manager:
 	def send_eth(self, address):
 		for _ in range(3):
 			try:
-				address = self.web3.to_checksum_address(address)
 				tx = {
 					"chainId": self.web3.eth.chain_id,
 					"from": self.acc.address,
