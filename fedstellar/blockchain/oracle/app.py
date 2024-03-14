@@ -115,8 +115,8 @@ class Manager:
 		return self.web3.eth.wait_for_transaction_receipt(sent_tx)
 
 	def deploy(self):
+		# self.contractObj = self.compile_contract()
 		for _ in range(20):
-			self.contractObj = self.compile_contract()
 			tx_hash = self.contractObj.constructor().build_transaction({
 				"chainId": self.web3.eth.chain_id,
 				"from": self.acc.address,
@@ -127,11 +127,11 @@ class Manager:
 			try:
 				tx_receipt = self.sign_and_deploy(tx_hash)
 				# print(self.web3.to_json(tx_receipt))
-				contractAddress = tx_receipt["contractAddress"]
-				if contractAddress:
-					print(f"SUCCESS: Contract deployed at {contractAddress}")
-					return contractAddress
-				print(f"WARNING: Deployment iteration failed -> {contractAddress}")
+				contract_address = tx_receipt["contractAddress"]
+				if contract_address:
+					print(f"SUCCESS: Contract deployed at {contract_address}")
+					return contract_address
+				print(f"WARNING: Deployment iteration failed -> {contract_address}")
 			except Exception as e:
 				print(e)
 				time.sleep(5)

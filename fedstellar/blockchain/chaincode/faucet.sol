@@ -38,25 +38,24 @@ contract Faucet {
             uint[] memory participant_history = direct_neighbors[participant][target_ip].history;
             uint participant_history_length = participant_history.length;
 
-            if (participant == msg.sender || participant_history_length == 0) {
+            if (participant_history_length == 0) {
                 continue;
             }
 
             int sum;
             for (int j = int(participant_history_length) - 1; j >= 0 && j >= int(participant_history_length) - 3; j--) {
-                sum += int(participant_history[uint(j)]) * MULTIPLIER;
+                sum += int(participant_history[uint(j)]);
             }
+            sum *= MULTIPLIER;
 
             uint[] memory callee_opinion = direct_neighbors[msg.sender][target_ip].history;
             int trust_factor = 100;
-
-            if (callee_opinion.length > 0) {
+            if (callee_opinion.length > 0 && participant != msg.sender) {
                 trust_factor = int(callee_opinion[callee_opinion.length - 1]);
             }
 
             trust_factor *= MULTIPLIER;
-
-            opinions[i] = sum / 3 * trust_factor / MULTIPLIER / MULTIPLIER;
+            opinions[i] = sum / int(participant_history_length) * trust_factor / MULTIPLIER / MULTIPLIER;
         }
 
         int n_opinions;
