@@ -1,4 +1,5 @@
 import os.path
+import random
 import shutil
 import textwrap
 import json
@@ -19,6 +20,7 @@ class Geth:
         self.__rpc_ip = "172.25.0.104"
         self.__oracle_ip = "172.25.0.105"
         self.__yaml = str()
+        self.__reserved_sockets = list()
 
         self.__genesis = self.__load_genesis()
         self.__setup_dir()
@@ -31,6 +33,15 @@ class Geth:
     def __setup_dir(self) -> None:
         if not os.path.exists(self.__config_dir):
             os.makedirs(self.__config_dir, exist_ok=True)
+
+    def __get_unreserved_socket(self):
+        for _ in range(100):
+            ip = random.randint(10, 254)
+            port = random.randint(30310, 30330)
+            if (ip, port) not in self.__reserved_sockets:
+                self.__reserved_sockets.append((ip, port))
+                return ip, port
+        raise Exception("Finding unreserved socket address failed")
 
     def __copy_dir(self, source):
         curr_path = os.path.dirname(os.path.abspath(__file__))
@@ -99,6 +110,8 @@ class Geth:
         for id in range(cnt):
             acc = w3.eth.account.create()
             cred_miner.append(acc.address[2:])
+            ip, port = self.__get_unreserved_socket()
+
             self.__yaml += textwrap.dedent(f"""
                 geth-validator-{id}:
                     hostname: geth-validator-{id}
@@ -108,7 +121,7 @@ class Geth:
                       - address={acc.address}
                       - bootnodeId={self.__boot_id}
                       - bootnodeIp={self.__boot_ip}
-                      - port=3031{id}
+                      - port={port}
                     build:
                       dockerfile: {self.__input_dir}/geth/validator.dockerfile
                       args:
@@ -117,7 +130,7 @@ class Geth:
                     container_name: validator_{id}
                     networks:
                       chainnet:
-                        ipv4_address: 172.25.0.11{id}
+                        ipv4_address: 172.25.0.{ip}
                 """)
 
         extra_data = "0x" + "0" * 64 + "".join([a for a in cred_miner]) + 65 * "0" + 65 * "0"
