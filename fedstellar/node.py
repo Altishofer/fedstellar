@@ -1672,7 +1672,7 @@ class Blockchain:
 			self.push_opinion(ip, opinion)
 			self.__request_balance()
 			self.get_reputation(ip)
-			self.get_raw_reputation(ip)
+			# self.get_raw_reputation(ip)
 
 			print(f"BLOCKCHAIN: iteration {iteration} finished after {round(time.time() - start, 2)}s", flush=True)
 

@@ -56,7 +56,7 @@ class Geth:
                 "muirGlacierBlock": 0,
                 "berlinBlock": 0,
                 "clique": {
-                    "period": 1,
+                    "period": 0,
                     "epoch": 10000
                 }
             },

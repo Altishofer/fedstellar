@@ -47,7 +47,7 @@ class Manager:
 					print(f"SUCCESS: RPC node up and running")
 					return True
 			except Exception as e:
-				print("RPC-Server not ready - sleep 10")
+				print("WARNING: RPC-Server not ready - sleep 10")
 				time.sleep(10)
 		return False
 
@@ -112,7 +112,7 @@ class Manager:
 	def sign_and_deploy(self, hash):
 		s_tx = self.web3.eth.account.sign_transaction(hash, private_key=self.acc.key)
 		sent_tx = self.web3.eth.send_raw_transaction(s_tx.rawTransaction)
-		return self.web3.eth.wait_for_transaction_receipt(sent_tx)
+		return self.web3.eth.wait_for_transaction_receipt(sent_tx, timeout=5)
 
 	def deploy(self):
 		# self.contractObj = self.compile_contract()
