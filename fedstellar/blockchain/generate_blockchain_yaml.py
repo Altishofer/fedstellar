@@ -38,7 +38,9 @@ class Geth:
         for _ in range(100):
             ip = random.randint(10, 254)
             port = random.randint(30310, 30330)
-            if (ip, port) not in self.__reserved_sockets:
+            reserved_ip = [socket[0] for socket in self.__reserved_sockets]
+            reserved_ports = [socket[1] for socket in self.__reserved_sockets]
+            if ip not in reserved_ip and port not in reserved_ports:
                 self.__reserved_sockets.append((ip, port))
                 return ip, port
         raise Exception("Finding unreserved socket address failed")
@@ -105,11 +107,11 @@ class Geth:
             """)
 
     def __add_validator(self, cnt):
-        cred_miner = list()
+        validator_addresses = list()
 
         for id in range(cnt):
             acc = w3.eth.account.create()
-            cred_miner.append(acc.address[2:])
+            validator_addresses.append(acc.address[2:])
             ip, port = self.__get_unreserved_socket()
 
             self.__yaml += textwrap.dedent(f"""
@@ -133,7 +135,7 @@ class Geth:
                         ipv4_address: 172.25.0.{ip}
                 """)
 
-        extra_data = "0x" + "0" * 64 + "".join([a for a in cred_miner]) + 65 * "0" + 65 * "0"
+        extra_data = "0x" + "0" * 64 + "".join([a for a in validator_addresses]) + 65 * "0" + 65 * "0"
         self.__genesis["extraData"] = extra_data
 
 
