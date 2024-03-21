@@ -22,7 +22,7 @@ contract Faucet {
             participants.push(msg.sender);
             inParticipants[msg.sender] = true;
         }
-
+        // a lot of zero during bootstrap, cossin is zero at beginning
         Node storage neighbor = direct_neighbors[msg.sender][target_ip];
         neighbor.history.push(opinion);
         return true;
@@ -65,7 +65,7 @@ contract Faucet {
         if (n_opinions != 0 && sum_opinions != 0) {
             final_opinion = uint(sum_opinions / n_opinions / MULTIPLIER);
         } else {
-            final_opinion = 50;
+            final_opinion = 25;
         }
 
         return final_opinion;

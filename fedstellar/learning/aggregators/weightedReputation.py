@@ -71,8 +71,11 @@ class ReputationWeights(Aggregator):
 			cossim = cosine_metric(local_model, untrusted_model, similarity=True)
 			avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
 
-			self.__blockchain.push_opinion(neighbor_name, int(cossim * (1 - avg_loss) * 100))
-			print("*" * 50, "name:", neighbor_name, "cossim:", cossim, "avg_loss:", avg_loss, "trust:", int(cossim * (1 - avg_loss) * 100), flush=True)
+			local_opinion = int(cossim * (1 - avg_loss) * 100)
+			save_local_opinion = local_opinion if 100 >= local_opinion > 0 else 1
+
+			self.__blockchain.push_opinion(neighbor_name, save_local_opinion)
+			print("*" * 50, "name:", neighbor_name, "cossim:", cossim, "avg_loss:", avg_loss, "trust:", save_local_opinion, flush=True)
 
 		neighbor_models = list(model_obj_collection.values())
 
@@ -80,7 +83,7 @@ class ReputationWeights(Aggregator):
 
 		print("reputation_values:", reputation_values, flush=True)
 
-		normalized_reputation_values = {name: reputation_values[name] // sum(reputation_values.values()) for name in reputation_values}
+		normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()),3) for name in reputation_values}
 
 		print("*" * 50, reputation_values, flush=True)
 		print("*" * 50, normalized_reputation_values, flush=True)
