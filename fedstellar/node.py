@@ -247,9 +247,9 @@ class Node(BaseNode):
 			self.aggregator = TrimmedMean(node_name=self.get_name(), config=self.config)
 
 		# TODO: check prototype
-		elif self.config.participant["use_blockchain"].lower() == "true":
-			self.aggregator = ReputationWeights(node_name=self.get_name(), config=self.config, blockchain=self.blockchain)
-		print(self.config.participant["use_blockchain"].lower(), flush=True)
+		elif self.config.participant["use_blockchain"]:
+			self.aggregator = ReputationWeights(node_name=self.get_name(), config=self.config, blockchain=self.blockchain, learner=self.learner)
+		print(self.config.participant["use_blockchain"], flush=True)
 
 		self.__trusted_nei = []
 		self.__is_malicious = False
