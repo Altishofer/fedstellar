@@ -18,12 +18,10 @@
 
 import logging
 import time
-from typing import Type
 
 import requests
 import torch
 
-# Blockchain
 from eth_account import Account
 from web3 import Web3
 from web3.middleware import construct_sign_and_send_raw_middleware
@@ -31,7 +29,6 @@ from web3.middleware import geth_poa_middleware
 
 from fedstellar.learning.aggregators.aggregator import Aggregator
 from fedstellar.learning.aggregators.helper import cosine_metric
-from fedstellar.learning.pytorch.lightninglearner import LightningLearner
 
 
 class ReputationWeights(Aggregator):
@@ -47,7 +44,7 @@ class ReputationWeights(Aggregator):
 
 		self.__blockchain = Blockchain()
 		self.__learner = learner
-		self.node_name=node_name
+		self.node_name = node_name
 
 	def aggregate(self, model_obj_collection):
 
@@ -68,15 +65,21 @@ class ReputationWeights(Aggregator):
 		for neighbor_name in neighbor_names:
 			if neighbor_name == self.node_name:
 				continue
+
 			untrusted_model = current_models[neighbor_name]
+
 			cossim = cosine_metric(local_model, untrusted_model, similarity=True)
 			avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
-			self.__blockchain.push_opinion(neighbor_name, cossim * avg_loss * 10e6)
-			print("*" * 50, neighbor_name, cossim, avg_loss, flush=True)
+
+			self.__blockchain.push_opinion(neighbor_name, int(cossim * (1 - avg_loss) * 100))
+			print("*" * 50, "name:", neighbor_name, "cossim:", cossim, "avg_loss:", avg_loss, "trust:", int(cossim * (1 - avg_loss) * 100), flush=True)
 
 		neighbor_models = list(model_obj_collection.values())
 
 		reputation_values = {name: self.__blockchain.get_reputation(name) for name in model_obj_collection.keys()}
+
+		print("reputation_values:", reputation_values, flush=True)
+
 		normalized_reputation_values = {name: reputation_values[name] // sum(reputation_values.values()) for name in reputation_values}
 
 		print("*" * 50, reputation_values, flush=True)
@@ -98,10 +101,6 @@ class ReputationWeights(Aggregator):
 
 		return final_model
 
-##########################################
-#    Experimental Blockchain Handlers    #
-##########################################
-
 
 class Blockchain:
 
@@ -121,7 +120,7 @@ class Blockchain:
 		self.__web3 = self.__initialize_geth()
 		self.__contract_obj = self.__get_contract_from_oracle()
 
-		# TODO: remove before pushing to prod
+		# FIXME: remove before pushing to prod
 		self.__testing()
 
 	def __wait_for_blockchain(self):
@@ -231,9 +230,9 @@ class Blockchain:
 					"from": self.__acc_address,
 					"gasPrice": self.__web3.to_wei("1", "gwei")
 				})
-				scaled_reputation = int(reputation / 100)
-				print(f"Blockchain: Reputation of {ip_address} = {scaled_reputation}%")
-				return scaled_reputation
+
+				print(f"Blockchain: Reputation of {ip_address} = {reputation}%")
+				return reputation
 			except Exception as e:
 				print(f"EXCEPTION: get_reputation({ip_address}) => {e}")
 				time.sleep(2)

@@ -103,7 +103,6 @@ class Controller:
         self.mender = None if self.simulation else Mender()
 
         # number of validation nodes, 0 if deactivated, assigned value otherwise
-        # TODO: check if arg string or int
         self.n_validation_nodes = args.n_validation_nodes if hasattr(args, "n_validation_nodes") else 0
     
     def check_version(self):

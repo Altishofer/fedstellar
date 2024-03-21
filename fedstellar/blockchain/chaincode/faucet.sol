@@ -48,14 +48,7 @@ contract Faucet {
             }
             sum *= MULTIPLIER;
 
-            uint[] memory callee_opinion = direct_neighbors[msg.sender][target_ip].history;
-            int trust_factor = 100;
-            if (callee_opinion.length > 0 && participant != msg.sender) {
-                trust_factor = int(callee_opinion[callee_opinion.length - 1]);
-            }
-
-            trust_factor *= MULTIPLIER;
-            opinions[i] = sum / int(participant_history_length) * trust_factor / MULTIPLIER / MULTIPLIER;
+            opinions[i] = sum / int(participant_history_length);
         }
 
         int n_opinions;
@@ -63,7 +56,7 @@ contract Faucet {
         for (uint i = 0; i < participants.length; i++) {
             int opinion = opinions[i];
             if (opinion > 0) {
-                sum_opinions += opinion * MULTIPLIER;
+                sum_opinions += opinion;
                 n_opinions++;
             }
         }

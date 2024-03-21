@@ -240,10 +240,9 @@ class Node(BaseNode):
 		elif self.config.participant["aggregator_args"]["algorithm"] == "TrimmedMean":
 			self.aggregator = TrimmedMean(node_name=self.get_name(), config=self.config)
 
-		# TODO: check prototype
+		# FIXME: check prototype
 		if self.config.participant["use_blockchain"]:
 			self.aggregator = ReputationWeights(node_name=self.get_name(), config=self.config, learner=self.learner)
-		print("*"*50, self.config.participant["use_blockchain"], flush=True)
 
 		self.__trusted_nei = []
 		self.__is_malicious = False

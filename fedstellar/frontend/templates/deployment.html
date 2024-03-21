@@ -1009,13 +1009,13 @@
                 document.querySelector(".overlay").style.display = "block";
                 document.getElementById("spinner").style.display = "block";
                 // Get response code
-                // TODO: request timeouts if blockchain is used or on a local slow environment
+                // FIXME: request timeouts if blockchain is used or on a local slow environment
                 xhr.addEventListener("load", function () {
                     if (xhr.status === 200) {
                         // Redirect to /scenario/
                         setTimeout(function () {
                             window.location.href = "/scenario/";
-                        }, 20000);
+                        }, 60000);
                     } else {
                         document.querySelector(".overlay").style.display = "none";
                         document.getElementById("spinner").style.display = "none";
