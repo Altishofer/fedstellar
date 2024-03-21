@@ -86,7 +86,8 @@ class Manager:
 		print(f"SUCCESS: Solidity files compiled and bytecode ready")
 		return self.web3.eth.contract(abi=self.contract_abi, bytecode=contract_bytecode)
 
-	def unlock(self):
+	@staticmethod
+	def unlock():
 		private_key = os.environ.get("PRIVATE_KEY")
 		return Account.from_key("0x" + private_key)
 
@@ -103,7 +104,7 @@ class Manager:
 					"gas": self.web3.to_wei("22000", "wei")
 				}
 				tx_receipt = self.sign_and_deploy(tx)
-				time.sleep(4)
+				# time.sleep(4)
 				return f"SUCESS: {tx_receipt}"
 			except Exception as e:
 				print(f"EXCEPTION: send_eth({address}) => {e}")

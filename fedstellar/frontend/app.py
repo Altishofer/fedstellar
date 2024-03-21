@@ -928,7 +928,7 @@ def fedstellar_scenario_deployment_run():
 
                 # set number of validation nodes to 0 to implicitly deactivate the blockchain feature
                 # TODO: check if "False" is always True or if False gets assigned as boolean
-                "n_validation_nodes": data["n_validation_nodes"] if data["use_blockchain"] else 0
+                "n_validation_nodes": data["n_validation_nodes"] if data["use_blockchain"].lower() == "true" else 0
             }
             # Save args in a file
             controller_file = os.path.join(
@@ -1044,7 +1044,10 @@ def fedstellar_scenario_deployment_run():
                     "scheme_mobility"
                 ]
                 participant_config["mobility_args"]["round_frequency"] = data["round_frequency"]
-                
+
+                # TODO: check prototype
+                participant_config["use_blockchain"] = data["use_blockchain"]
+                print("*"*100, "data[use_blockchain]", data["use_blockchain"], flush=True)
 
                 with open(participant_file, "w") as f:
                     json.dump(participant_config, f, sort_keys=False, indent=2)

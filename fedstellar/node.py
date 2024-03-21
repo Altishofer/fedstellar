@@ -58,6 +58,9 @@ from fedstellar.learning.aggregators.fedavg import FedAvg
 from fedstellar.learning.aggregators.krum import Krum
 from fedstellar.learning.aggregators.median import Median
 from fedstellar.learning.aggregators.trimmedmean import TrimmedMean
+
+# blockchain
+from fedstellar.learning.aggregators.weightedReputation import ReputationWeights
 from fedstellar.learning.exceptions import DecodingParamsError, ModelNotMatchingError
 from fedstellar.learning.pytorch.lightninglearner import LightningLearner
 
@@ -243,6 +246,11 @@ class Node(BaseNode):
 		elif self.config.participant["aggregator_args"]["algorithm"] == "TrimmedMean":
 			self.aggregator = TrimmedMean(node_name=self.get_name(), config=self.config)
 
+		# TODO: check prototype
+		elif self.config.participant["use_blockchain"].lower() == "true":
+			self.aggregator = ReputationWeights(node_name=self.get_name(), config=self.config, blockchain=self.blockchain)
+		print(self.config.participant["use_blockchain"].lower(), flush=True)
+
 		self.__trusted_nei = []
 		self.__is_malicious = False
 		if self.config.participant["adversarial_args"]["attacks"] != "No Attack":
@@ -293,7 +301,7 @@ class Node(BaseNode):
 		lower_threshold = 1
 		higher_threshold = len(self.__train_set) - 1
 
-		# make sute higher_threshold is not lower than lower_threshold
+		# make sure higher_threshold is not lower than lower_threshold
 		if higher_threshold < lower_threshold:
 			higher_threshold = lower_threshold
 
@@ -320,7 +328,7 @@ class Node(BaseNode):
 					self.__dynamic_aggregator(self.aggregator.get_aggregated_models_weights(), malicious_nodes)
 
 	def __dynamic_aggregator(self, aggregated_models_weights, malicious_nodes):
-		logging.info(f"malicious detected at round {self.round}, change aggergation protocol!")
+		logging.info(f"malicious detected at round {self.round}, change aggregation protocol!")
 		if self.aggregator != self.target_aggregation:
 			logging.info(f"get_aggregated_models current aggregator is: {self.aggregator}")
 			self.aggregator = self.target_aggregation
@@ -1498,7 +1506,6 @@ class Blockchain:
 		# TODO: remove before pushing to prod
 		self.__testing()
 
-
 	def __wait_for_blockchain(self):
 		for _ in range(20):
 			try:
@@ -1592,9 +1599,9 @@ class Blockchain:
 					}
 				)
 				conf = self.__sign_and_deploy(unsigned_trx)
-				json_reponse = self.__web3.to_json(conf)
+				json_response = self.__web3.to_json(conf)
 				print(f"Blockchain: Rating {ip_address} with {opinion}")
-				return json_reponse
+				return json_response
 			except Exception as e:
 				print(f"EXCEPTION: push_opinion({ip_address}, {opinion}) => {e}")
 				time.sleep(2)
