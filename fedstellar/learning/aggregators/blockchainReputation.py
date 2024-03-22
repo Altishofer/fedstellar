@@ -50,53 +50,49 @@ class BlockchainReputation(Aggregator):
 
 		if not len(model_obj_collection):
 			logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
-			return
-		print(model_obj_collection, flush=True)
+			return None
+
 		current_models = {}
-		for subnodes in model_obj_collection.keys():
+		for subnodes, (submodel, _) in model_obj_collection.items():
 			sublist = subnodes.split()
-			submodel = model_obj_collection[subnodes][0]
 			for node in sublist:
 				current_models[node] = submodel
 
-
-		print("*"*50, "current_models",current_models)
 		local_model = self.__learner.get_parameters()
-		neighbor_names = list(model_obj_collection.keys())
+		neighbor_names = [neighbor_name for neighbor_name in current_models.keys() if neighbor_name != self.node_name]
 
 		for neighbor_name in neighbor_names:
-			if neighbor_name == self.node_name:
-				continue
-
-			untrusted_model, _ = model_obj_collection[neighbor_name]
+			untrusted_model = current_models[neighbor_name]
 
 			cossim = cosine_metric(local_model, untrusted_model, similarity=True)
 			avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
 
-			local_opinion = int(cossim * (1 - avg_loss) * 100)
-			save_local_opinion = local_opinion if 100 >= local_opinion > 0 else 1
+			local_opinion = max(min(int(cossim * (1 - avg_loss) * 100), 100), 1)
 
-			self.__blockchain.push_opinion(neighbor_name, save_local_opinion)
-			print("*" * 50, "name:", neighbor_name, "cossim:", cossim, "avg_loss:", avg_loss, "trust:", save_local_opinion, flush=True)
+			self.__blockchain.push_opinion(neighbor_name, local_opinion)
+			print(
+				f"{'*' * 50} name: {neighbor_name}, cossim: {round(cossim, 2)}, avg_loss: {round(avg_loss,2)}, 1-avg_loss: {round(1 - avg_loss,2)} trust: {local_opinion}",
+				flush=True)
 
-		neighbor_models = list(model_obj_collection.values())
+		neighbor_models = list(current_models.values())
 
-		reputation_values = {name: self.__blockchain.get_reputation(name) for name in model_obj_collection.keys()}
+		reputation_values = {name: self.__blockchain.get_reputation(name) for name in current_models.keys()}
 
 		print("*" * 50, "reputation_values:", reputation_values, flush=True)
 
-		normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()), 3) for name in reputation_values}
+		normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()), 3) for
+		                                name in reputation_values}
 
-		print("*" * 50, reputation_values, flush=True)
-		print("*" * 50, normalized_reputation_values, flush=True)
+		print("*" * 50, "reputation_values:", reputation_values, flush=True)
+		print("*" * 50, "normalized_reputation_values:", normalized_reputation_values, flush=True)
 
 		total_samples = sum(w for _, w in neighbor_models)
 
 		final_model = {layer: torch.zeros_like(param) for layer, param in neighbor_models[-1][0].items()}
 
 		logging.info(f"[FedAvg.aggregate] Aggregating models: num={len(neighbor_models)}")
-		for model_name in model_obj_collection.keys():
-			model, n_samples = model_obj_collection[model_name]
+		for model_name in current_models.keys():
+			model, n_samples = current_models[model_name]
 			for layer in final_model:
 				final_model[layer] += model[layer] * n_samples * normalized_reputation_values[model_name]
 
@@ -118,7 +114,7 @@ class Blockchain:
 		self.__acc_address = str()
 		self.__rpc_url = "http://172.25.0.104:8545"
 		self.__oracle_url = "http://172.25.0.105:8081"
-		self.__balance = float() # DDos protection?
+		self.__balance = float()  # DDos protection?
 
 		self.__wait_for_blockchain()
 		self.__acc = self.__create_account()
@@ -291,8 +287,7 @@ class Blockchain:
 
 	def __testing(self):
 		for opinion, iteration in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
-
-			print("*"*50, f"BLOCKCHAIN TESTING: iteration {iteration}", "*"*50, flush=True)
+			print("*" * 50, f"BLOCKCHAIN TESTING: iteration {iteration}", "*" * 50, flush=True)
 			start = time.time()
 			ip = f"192.168.0.{iteration % 5}"
 

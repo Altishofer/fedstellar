@@ -3,7 +3,7 @@
     "name": "",
     "start_time": "",
     "federation": "DFL",
-    "rounds": 10,
+    "rounds": 30,
     "simulation": true,
     "controller": "127.0.0.1:5000",
     "random_seed": 42,
@@ -63,7 +63,7 @@
     "model": "MLP"
   },
   "training_args": {
-    "epochs": 3
+    "epochs": 1
   },
   "aggregator_args": {
     "algorithm": "FedAvg"
