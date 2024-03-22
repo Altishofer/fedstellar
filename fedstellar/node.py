@@ -56,7 +56,7 @@ from fedstellar.learning.aggregators.median import Median
 from fedstellar.learning.aggregators.trimmedmean import TrimmedMean
 
 # blockchain
-from fedstellar.learning.aggregators.weightedReputation import ReputationWeights
+from fedstellar.learning.aggregators.blockchainReputation import BlockchainReputation
 from fedstellar.learning.exceptions import DecodingParamsError, ModelNotMatchingError
 from fedstellar.learning.pytorch.lightninglearner import LightningLearner
 
@@ -242,7 +242,7 @@ class Node(BaseNode):
 
 		# FIXME: check prototype
 		if self.config.participant["use_blockchain"]:
-			self.aggregator = ReputationWeights(node_name=self.get_name(), config=self.config, learner=self.learner)
+			self.aggregator = BlockchainReputation(node_name=self.get_name(), config=self.config, learner=self.learner)
 
 		self.__trusted_nei = []
 		self.__is_malicious = False

@@ -31,7 +31,7 @@ from fedstellar.learning.aggregators.aggregator import Aggregator
 from fedstellar.learning.aggregators.helper import cosine_metric
 
 
-class ReputationWeights(Aggregator):
+class BlockchainReputation(Aggregator):
 	"""
 	Blockchain Prototype
 	"""
@@ -40,7 +40,7 @@ class ReputationWeights(Aggregator):
 		super().__init__(node_name, config)
 		self.config = config
 		self.role = self.config.participant["device_args"]["role"]
-		logging.info("[ReputationWeights] My config is {}".format(self.config))
+		logging.info("[BlockchainReputation] My config is {}".format(self.config))
 
 		self.__blockchain = Blockchain()
 		self.__learner = learner
@@ -49,9 +49,9 @@ class ReputationWeights(Aggregator):
 	def aggregate(self, model_obj_collection):
 
 		if not len(model_obj_collection):
-			logging.error("[ReputationWeights] Trying to aggregate models when there are no models")
+			logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
 			return
-
+		print(model_obj_collection, flush=True)
 		current_models = {}
 		for subnodes in model_obj_collection.keys():
 			sublist = subnodes.split()
@@ -59,14 +59,16 @@ class ReputationWeights(Aggregator):
 			for node in sublist:
 				current_models[node] = submodel
 
+
+		print("*"*50, "current_models",current_models)
 		local_model = self.__learner.get_parameters()
-		neighbor_names = list(current_models.keys())
+		neighbor_names = list(model_obj_collection.keys())
 
 		for neighbor_name in neighbor_names:
 			if neighbor_name == self.node_name:
 				continue
 
-			untrusted_model = current_models[neighbor_name]
+			untrusted_model, _ = model_obj_collection[neighbor_name]
 
 			cossim = cosine_metric(local_model, untrusted_model, similarity=True)
 			avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
@@ -81,9 +83,9 @@ class ReputationWeights(Aggregator):
 
 		reputation_values = {name: self.__blockchain.get_reputation(name) for name in model_obj_collection.keys()}
 
-		print("reputation_values:", reputation_values, flush=True)
+		print("*" * 50, "reputation_values:", reputation_values, flush=True)
 
-		normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()),3) for name in reputation_values}
+		normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()), 3) for name in reputation_values}
 
 		print("*" * 50, reputation_values, flush=True)
 		print("*" * 50, normalized_reputation_values, flush=True)
