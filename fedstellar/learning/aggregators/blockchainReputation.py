@@ -21,6 +21,7 @@ import time
 
 import requests
 import torch
+from torch import nn
 
 from eth_account import Account
 from web3 import Web3
@@ -29,7 +30,6 @@ from web3.middleware import geth_poa_middleware
 
 from fedstellar.learning.aggregators.aggregator import Aggregator
 from fedstellar.learning.aggregators.helper import cosine_metric
-
 
 class BlockchainReputation(Aggregator):
 	"""
@@ -59,6 +59,10 @@ class BlockchainReputation(Aggregator):
 				current_models[node] = submodel
 
 		local_model = self.__learner.get_parameters()
+		final_model = {layer: torch.zeros_like(param) for layer, param in local_model.items()}
+
+		print(final_model, flush=True)
+
 		neighbor_names = [neighbor_name for neighbor_name in current_models.keys() if neighbor_name != self.node_name]
 
 		for neighbor_name in neighbor_names:
@@ -71,7 +75,7 @@ class BlockchainReputation(Aggregator):
 
 			self.__blockchain.push_opinion(neighbor_name, local_opinion)
 			print(
-				f"{'*' * 50} name: {neighbor_name}, cossim: {round(cossim, 2)}, avg_loss: {round(avg_loss,2)}, 1-avg_loss: {round(1 - avg_loss,2)} trust: {local_opinion}",
+				f"{'*' * 50} name: {neighbor_name}, cossim: {round(cossim, 2)}, avg_loss: {round(avg_loss, 2)}, 1-avg_loss: {round(1 - avg_loss, 2)} trust: {local_opinion}",
 				flush=True)
 
 		neighbor_models = list(current_models.values())
@@ -86,19 +90,18 @@ class BlockchainReputation(Aggregator):
 		print("*" * 50, "reputation_values:", reputation_values, flush=True)
 		print("*" * 50, "normalized_reputation_values:", normalized_reputation_values, flush=True)
 
-		total_samples = sum(w for _, w in neighbor_models)
-
-		final_model = {layer: torch.zeros_like(param) for layer, param in neighbor_models[-1][0].items()}
+		# total_samples = sum(w for _, w in neighbor_models) if neighbor_models else 0
 
 		logging.info(f"[FedAvg.aggregate] Aggregating models: num={len(neighbor_models)}")
-		for model_name in current_models.keys():
-			model, n_samples = current_models[model_name]
+
+		for neighbor_name in neighbor_names:
+			neighbor_model = current_models[neighbor_name]
 			for layer in final_model:
-				final_model[layer] += model[layer] * n_samples * normalized_reputation_values[model_name]
+				final_model[layer] += neighbor_model[layer] * normalized_reputation_values[neighbor_name]  # * n_samples
 
 		# Normalize sample_count
-		for layer in final_model:
-			final_model[layer] /= total_samples
+		# for layer in final_model:
+		# 	final_model[layer] /= total_samples
 
 		return final_model
 
