@@ -350,7 +350,7 @@ class Controller:
         
         docker_compose_file = docker_compose_template.format(services)
         docker_compose_file += network_template.format(
-            "192.168.100.1/24", "192.168.100.1"
+            "192.168.100.0/24", "192.168.100.1"
         )
         
         # Write the Docker Compose file in waf directory
@@ -470,7 +470,7 @@ class Controller:
             docker_compose_file += network_template_external
         else:
             docker_compose_file += network_template.format(
-                "192.168.100.1/24", "192.168.100.1"
+                "192.168.100.0/24", "192.168.100.1"
             )
         # Write the Docker Compose file in config directory
         with open(
