@@ -302,7 +302,7 @@
                     <div id="docker-options">
                         <h5 class="step-title">Network address</h5>
                         <input type="text" class="form-control" id="network-subnet" style="width: 80%"
-                            value="192.168.50.1/24">
+                            value="192.168.50.0/24">
                         <h5 class="step-title">Network gateway</h5>
                         <input type="text" class="form-control" id="network-gateway" style="width: 80%"
                             value="192.168.50.1">
@@ -1616,7 +1616,8 @@
         ip_split = ip_split[0].split(".");
         var ip_last = parseInt(ip_split[3]);
         for (var i = 0; i < nodes.length; i++) {
-            nodes[i].ip = ip_split[0] + "." + ip_split[1] + "." + ip_split[2] + "." + (ip_last + i + 1);
+            // FIXME: had to ad +2 since the first assigned ip is otherwise the same as the gateway address
+            nodes[i].ip = ip_split[0] + "." + ip_split[1] + "." + ip_split[2] + "." + (ip_last + i + 1 + 2);
         }
         gData.nodes = nodes;
 

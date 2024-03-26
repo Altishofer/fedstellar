@@ -106,6 +106,7 @@ class Controller:
         self.n_validation_nodes = args.n_validation_nodes if hasattr(args, "n_validation_nodes") else 0
     
     def check_version(self):
+        return
         # Check version of Fedstellar (__version__ is defined in __init__.py) and compare with __version__ in https://raw.githubusercontent.com/enriquetomasmb/fedstellar/main/fedstellar/__init__.py
         logging.info("Checking Fedstellar version...")
         try:
@@ -715,6 +716,7 @@ class Controller:
             )
         )
 
+        # FIXME: prototype
         # Early boot of blockchain
         if self.simulation and self.n_validation_nodes:
             self.start_blockchain_docker()
@@ -930,7 +932,6 @@ class Controller:
 
         docker_compose_template = textwrap.dedent(
             """
-            version: "3.8"
             services:
             {}
         """
