@@ -18,10 +18,8 @@ contract Faucet {
         external
         returns (bool)
     {
-        opinion = opinion < 0 ? 0 : opinion;
-        opinion = opinion > 100 ? 100 : opinion;
-        // require(opinion <= 100, "Opinion should be less than or equal to 100");
-        // require(opinion >= 0, "Opinion should be greater than or equal to 0");
+        require(opinion <= 100, "Opinion should be less than or equal to 100");
+        require(opinion >= 0, "Opinion should be greater than or equal to 0");
         require(
             valid_neighbors(msg.sender, to_ip),
             "The nodes are not confirmed neighbors"
@@ -32,7 +30,7 @@ contract Faucet {
         return true;
     }
 
-    function getReputation(string memory to_ip)
+    function getReputation_old(string memory to_ip)
         external
         view
         returns (uint256)
@@ -51,23 +49,23 @@ contract Faucet {
             uint256[] memory participant_history = address_ip_node[participant][
                 to_ip
             ].history;
-            uint256 participant_history_length = participant_history.length;
+            uint256 hist_len = participant_history.length;
 
-            if (participant_history_length == 0) {
+            if (hist_len == 0) {
                 continue;
             }
 
             int256 sum;
             for (
-                int256 j = int256(participant_history_length) - 1;
-                j >= 0 && j >= int256(participant_history_length) - 3;
+                int256 j = int256(hist_len) - 1;
+                j >= 0 && j >= int256(hist_len) - 3;
                 j--
             ) {
                 sum += int256(participant_history[uint256(j)]);
             }
             sum *= MULTIPLIER;
 
-            opinions[i] = sum / int256(participant_history_length);
+            opinions[i] = sum / int256(hist_len);
         }
 
         int256 n_opinions;
@@ -89,6 +87,65 @@ contract Faucet {
 
         return final_opinion;
     }
+
+    function getReputation(string memory to_ip)
+        external
+        view
+        returns (uint256)
+    {
+        int256 MULTIPLIER = 1000000;
+
+        require(
+            valid_neighbors(msg.sender, to_ip),
+            "The nodes are not confirmed neighbors"
+        );
+
+        int256[] memory opinions = new int256[](participants.length);
+
+        for (uint256 i = 0; i < participants.length; i++) {
+            address participant = participants[i];
+            uint256[] memory participant_history = address_ip_node[participant][to_ip].history;
+            uint256 hist_len = participant_history.length;
+
+            if (hist_len == 0) {
+                continue;
+            }
+
+            int256 sum;
+            int256 hist_included;
+            for (
+                int256 j = int256(hist_len) - 1;
+                j >= 0 && j >= int256(hist_len) - 3;
+                j--
+            ) {
+                hist_included++;
+                sum += int256(participant_history[uint256(j)]);
+            }
+            sum *= MULTIPLIER;
+
+            opinions[i] = sum / int256(hist_included);
+        }
+
+        int256 n_opinions;
+        int256 sum_opinions;
+        for (uint256 i = 0; i < participants.length; i++) {
+            int256 opinion = opinions[i];
+            if (opinion > 0) {
+                sum_opinions += opinion;
+                n_opinions++;
+            }
+        }
+
+        uint256 final_opinion;
+        if (n_opinions != 0 && sum_opinions != 0) {
+            final_opinion = uint256(sum_opinions / n_opinions / MULTIPLIER);
+        } else {
+            final_opinion = 25;
+        }
+
+        return final_opinion;
+    }
+
 
     function register_neighbors(
         string[] memory neighbors,

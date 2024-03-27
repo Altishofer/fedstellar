@@ -1046,7 +1046,6 @@ def fedstellar_scenario_deployment_run():
 
                 # FIXME: check prototype
                 participant_config["use_blockchain"] = data["use_blockchain"]
-                print("*"*100, "data[use_blockchain]", data["use_blockchain"], flush=True)
 
                 with open(participant_file, "w") as f:
                     json.dump(participant_config, f, sort_keys=False, indent=2)

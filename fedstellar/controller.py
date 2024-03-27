@@ -596,20 +596,16 @@ class Controller:
     @staticmethod
     def stop_blockchain():
         pass
-        #try:
-        #    logging.info("Blockchain is being deployed")
-        #    subprocess.check_call(
-        #        [
-        #            "docker",
-        #            "compose",
-        #            "down",
-        #            "blockchain"
-        #        ]
-        #    )
-        #except subprocess.CalledProcessError:
-        #    logging.error(
-        #        "Docker Compose failed to stop blockchain or blockchain already exited."
-        #    )
+        try:
+            logging.info("Blockchain is being stopped")
+            subprocess.Popen(
+                "docker ps -a --filter 'label=com.docker.compose.project=blockchain' --format '{{.ID}}' | xargs -n 1 docker rm --force --volumes  >/dev/null 2>&1",
+                shell=True
+            )
+        except subprocess.CalledProcessError:
+            logging.error(
+                "Docker Compose failed to stop blockchain or blockchain already exited."
+            )
 
     @staticmethod
     def stop_participants():

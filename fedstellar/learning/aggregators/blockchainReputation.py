@@ -63,20 +63,15 @@ class BlockchainReputation(Aggregator):
                 current_models[node] = submodel
 
         local_model = self.__learner.get_parameters()
+
         final_model = {layer: torch.zeros_like(param) for layer, param in local_model.items()}
 
         neighbor_names = [neighbor_name for neighbor_name in current_models.keys() if neighbor_name != self.node_name]
 
-        for neighbor_name in neighbor_names:
-            untrusted_model = current_models[neighbor_name]
+        opinion_values = {neighbor_name: self.__get_opinion(neighbor_name, local_model, current_models[neighbor_name])
+                          for neighbor_name in neighbor_names}
 
-            # local_opinion = self.cossim_loss_opinion(neighbor_name, local_model, untrusted_model)
-            # local_opinion = self.euclidean_opinion(neighbor_name, local_model, untrusted_model)
-            local_opinion = self.minkowski_opinion(neighbor_name, local_model, untrusted_model)
-            # local_opinion = self.manhattan_opinion(neighbor_name, local_model, untrusted_model)
-            # local_opinion = self.pearson_correlation_opinion(neighbor_name, local_model, untrusted_model)
-            # local_opinion = self.jaccard_opinion(neighbor_name, local_model, untrusted_model)
-
+        for neighbor_name, local_opinion in opinion_values.items():
             self.__blockchain.push_opinion(neighbor_name, local_opinion)
 
         reputation_values = {name: self.__blockchain.get_reputation(name) for name in current_models.keys()}
@@ -94,6 +89,15 @@ class BlockchainReputation(Aggregator):
 
         print(f"{'*' * 50} BLOCKCHAIN AGGREGATION: FINISHED {'*' * 50}", flush=True)
         return final_model
+
+    def __get_opinion(self, neighbor_name, local_model, untrusted_model):
+        # local_opinion = self.cossim_loss_opinion(neighbor_name, local_model, untrusted_model)
+        # local_opinion = self.euclidean_opinion(neighbor_name, local_model, untrusted_model)
+        local_opinion = self.minkowski_opinion(neighbor_name, local_model, untrusted_model)
+        # local_opinion = self.manhattan_opinion(neighbor_name, local_model, untrusted_model)
+        # local_opinion = self.pearson_correlation_opinion(neighbor_name, local_model, untrusted_model)
+        # local_opinion = self.jaccard_opinion(neighbor_name, local_model, untrusted_model)
+        return local_opinion
 
     def cossim_loss_opinion(self, neighbor_name, local_model, untrusted_model):
         cossim = cosine_metric(local_model, untrusted_model, similarity=True)
@@ -116,7 +120,7 @@ class BlockchainReputation(Aggregator):
 
     def minkowski_opinion(self, neighbor_name, local_model, untrusted_model):
         metric = minkowski_metric(local_model, untrusted_model, p=2)
-        local_opinion = max(round(metric / 2 * 100), 1)
+        local_opinion = max(min(round((10 - metric) * 10), 100), 1)
         print(
             f"AGGREGATION: neighbor: {neighbor_name}, minkowski: {round(metric, 2)}, trust: {local_opinion}%",
             flush=True
@@ -174,7 +178,6 @@ class Blockchain:
         self.__contract_obj = self.__get_contract_from_oracle()
         self._register_neighbors()
 
-        print(f"BLOCKCHAIN: Neighbors: {self.__neighbors}", flush=True)
         print(f"BLOCKCHAIN: IP: {self.__home_ip}", flush=True)
         print(f"BLOCKCHAIN: Account address: {self.__acc_address}", flush=True)
         print(f"{'*' * 50} BLOCKCHAIN INITIALIZATION: FINISHED {'*' * 50}", flush=True)
@@ -191,7 +194,7 @@ class Blockchain:
                     timeout=10
                 )
                 if r.status_code == 200:
-                    print(f"BLOCKCHAIN: Blockchain is ready", flush=True)
+                    print(f"ORACLE: Blockchain is ready", flush=True)
                     return
             except Exception as e:
                 print(f"EXCEPTION: wait_for_blockchain() => {e}", flush=True)
@@ -214,7 +217,7 @@ class Blockchain:
                 )
                 if r.status_code == 200:
                     json_response = r.json()
-                    print(f"BLOCKCHAIN: Contract requested from oracle at address {json_response.get('address')}",
+                    print(f"ORACLE: Reputation system at {json_response.get('address')}",
                           flush=True)
                     return self.__web3.eth.contract(
                         abi=json_response.get("abi"),
@@ -238,7 +241,7 @@ class Blockchain:
                     timeout=10
                 )
                 if r.status_code == 200:
-                    print(f"BLOCKCHAIN: Received 3 ETH from Oracle", flush=True)
+                    print(f"ORACLE: Received 3 ETH", flush=True)
                     return acc
             except Exception as e:
                 print(f"EXCEPTION: create_account() => {e}", flush=True)
