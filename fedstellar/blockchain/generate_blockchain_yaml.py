@@ -37,7 +37,7 @@ class Geth:
     def __get_unreserved_socket(self):
         for _ in range(100):
             ip = random.randint(10, 254)
-            port = random.randint(30310, 30330)
+            port = random.randint(30310, 30360)
             reserved_ip = [socket[0] for socket in self.__reserved_sockets]
             reserved_ports = [socket[1] for socket in self.__reserved_sockets]
             if ip not in reserved_ip and port not in reserved_ports:

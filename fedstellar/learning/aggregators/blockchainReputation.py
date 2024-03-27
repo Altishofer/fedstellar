@@ -84,7 +84,7 @@ class BlockchainReputation(Aggregator):
         normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()), 3) for
                                         name in reputation_values}
 
-        print(f"AGGREGATION: Computed reputation for all updates: {reputation_values}", flush=True)
+        print(f"AGGREGATION: Reputation for contributions: {reputation_values}", flush=True)
         print(f"AGGREGATION: Normalized reputation for aggregation: {normalized_reputation_values}", flush=True)
 
         for neighbor_name in neighbor_names:
@@ -116,7 +116,7 @@ class BlockchainReputation(Aggregator):
 
     def minkowski_opinion(self, neighbor_name, local_model, untrusted_model):
         metric = minkowski_metric(local_model, untrusted_model, p=2)
-        local_opinion = max(min(int(metric * 100), 100), 1)
+        local_opinion = max(round(metric / 2 * 100), 1)
         print(
             f"AGGREGATION: neighbor: {neighbor_name}, minkowski: {round(metric, 2)}, trust: {local_opinion}%",
             flush=True
@@ -143,7 +143,7 @@ class BlockchainReputation(Aggregator):
 
     def jaccard_opinion(self, neighbor_name, local_model, untrusted_model):
         metric = jaccard_metric(local_model, untrusted_model)
-        local_opinion = max(min(int(metric * 100), 100), 1)
+        local_opinion = max(min(round(metric * 100), 100), 1)
         print(
             f"AGGREGATION: neighbor: {neighbor_name}, jaccard: {round(metric, 2)}, trust: {local_opinion}%",
             flush=True
@@ -154,6 +154,8 @@ class BlockchainReputation(Aggregator):
 class Blockchain:
 
     def __init__(self, neighbors, home_address):
+        print(f"{'*' * 50} BLOCKCHAIN INITIALIZATION: START {'*' * 50}", flush=True)
+
         self.__header = {
             'Content-type': 'application/json',
             'Accept': 'application/json'
@@ -172,6 +174,11 @@ class Blockchain:
         self.__contract_obj = self.__get_contract_from_oracle()
         self._register_neighbors()
 
+        print(f"BLOCKCHAIN: Neighbors: {self.__neighbors}", flush=True)
+        print(f"BLOCKCHAIN: IP: {self.__home_ip}", flush=True)
+        print(f"BLOCKCHAIN: Account address: {self.__acc_address}", flush=True)
+        print(f"{'*' * 50} BLOCKCHAIN INITIALIZATION: FINISHED {'*' * 50}", flush=True)
+
         # FIXME: remove before pushing to prod
         #self.__testing()
 
@@ -184,10 +191,10 @@ class Blockchain:
                     timeout=10
                 )
                 if r.status_code == 200:
-                    print(f"BLOCKCHAIN: wait_for_blockchain() => blockchain up and running", flush=True)
+                    print(f"BLOCKCHAIN: Blockchain is ready", flush=True)
                     return
             except Exception as e:
-                print(f"EXCEPTION: wait_for_blockchain => {e}", flush=True)
+                print(f"EXCEPTION: wait_for_blockchain() => {e}", flush=True)
                 time.sleep(3)
 
     def __initialize_geth(self):
@@ -231,7 +238,7 @@ class Blockchain:
                     timeout=10
                 )
                 if r.status_code == 200:
-                    print(f"BLOCKCHAIN: Funds successfully requested from oracle", flush=True)
+                    print(f"BLOCKCHAIN: Received 3 ETH from Oracle", flush=True)
                     return acc
             except Exception as e:
                 print(f"EXCEPTION: create_account() => {e}", flush=True)
@@ -340,7 +347,6 @@ class Blockchain:
 
     def _register_neighbors(self) -> str:
         for _ in range(3):
-            print(f"neighbors:{self.__neighbors}, home_ip:{self.__home_ip}, address:{self.__acc_address}", flush=True)
             try:
                 unsigned_trx = self.__contract_obj.functions.register_neighbors(self.__neighbors,
                                                                                 self.__home_ip).build_transaction(
@@ -355,7 +361,7 @@ class Blockchain:
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_reponse = self.__web3.to_json(conf)
-                print(f"BLOCKCHAIN: registered '{self.__neighbors}' as neighbors on blockchain", flush=True)
+                print(f"BLOCKCHAIN: Neighbors registered on blockchain: {self.__neighbors}", flush=True)
                 return json_reponse
             except Exception as e:
                 print(f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) => {e}", flush=True)

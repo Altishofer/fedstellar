@@ -18,8 +18,10 @@ contract Faucet {
         external
         returns (bool)
     {
-        require(opinion <= 100, "Opinion should be less than or equal to 100");
-        require(opinion >= 0, "Opinion should be greater than or equal to 0");
+        opinion = opinion < 0 ? 0 : opinion;
+        opinion = opinion > 100 ? 100 : opinion;
+        // require(opinion <= 100, "Opinion should be less than or equal to 100");
+        // require(opinion >= 0, "Opinion should be greater than or equal to 0");
         require(
             valid_neighbors(msg.sender, to_ip),
             "The nodes are not confirmed neighbors"
