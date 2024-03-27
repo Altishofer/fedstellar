@@ -8,34 +8,45 @@ contract Faucet {
     address[] public participants;
     mapping(address => bool) public inParticipants;
 
+    mapping(address => mapping(string => bool)) neighbor_of;
+    mapping(address => string) address_ip;
+    mapping(string => address) ip_address;
+
     struct Node {
         uint[] history;
     }
 
     mapping(address => mapping(string => Node)) private direct_neighbors;
 
-    function rateNeighbor(string memory target_ip, uint opinion) external returns (bool) {
+    function rateNeighbor(string memory to_ip, uint opinion) external returns (bool) {
         require(opinion <= 100, "Opinion should be less than or equal to 100");
         require(opinion >= 0, "Opinion should be greater than or equal to 0");
+        require(valid_neighbors(msg.sender, to_ip), "The nodes are not confirmed neighbors");
 
-        if (!inParticipants[msg.sender]) {
-            participants.push(msg.sender);
-            inParticipants[msg.sender] = true;
-        }
-        // a lot of zero during bootstrap, cossin is zero at beginning
-        Node storage neighbor = direct_neighbors[msg.sender][target_ip];
+        Node storage neighbor = direct_neighbors[msg.sender][to_ip];
         neighbor.history.push(opinion);
         return true;
     }
 
-    function getReputation(string memory target_ip) external view returns (uint) {
+    function valid_neighbors(address from_address, string memory to_ip) private view returns (bool){
+        string memory from_ip = address_ip[from_address];
+        address to_address = ip_address[to_ip];
+        if (neighbor_of[from_address][to_ip] && neighbor_of[to_address][from_ip]){
+            return true;
+        }
+        return false;
+    }
+
+    function getReputation(string memory to_ip) external view returns (uint) {
         int MULTIPLIER = 1000000;
+
+        require(valid_neighbors(msg.sender, to_ip), "The nodes are not confirmed neighbors");
 
         int[] memory opinions = new int[](participants.length);
 
         for (uint i = 0; i < participants.length; i++) {
             address participant = participants[i];
-            uint[] memory participant_history = direct_neighbors[participant][target_ip].history;
+            uint[] memory participant_history = direct_neighbors[participant][to_ip].history;
             uint participant_history_length = participant_history.length;
 
             if (participant_history_length == 0) {
@@ -71,12 +82,12 @@ contract Faucet {
         return final_opinion;
     }
 
-    function getLastBasicReputation(string memory target_ip) external view returns (uint[] memory) {
+    function getLastBasicReputation(string memory to_ip) external view returns (uint[] memory) {
         uint[] memory opinions = new uint[](participants.length);
 
         for (uint i = 0; i < participants.length; i++) {
             address participant = participants[i];
-            uint[] memory participant_history = direct_neighbors[participant][target_ip].history;
+            uint[] memory participant_history = direct_neighbors[participant][to_ip].history;
             uint participant_history_length = participant_history.length;
 
             if (participant_history_length == 0) {
@@ -89,6 +100,22 @@ contract Faucet {
         return opinions;
     }
 
+    function register_neighbors(string[] memory neighbors, string memory socket_address) external returns (bool){
+        address from_address = address(msg.sender);
+
+        require(!inParticipants[from_address], "Sender already registered neighbors.");
+
+        participants.push(from_address);
+        inParticipants[from_address] = true;
+
+        address_ip[from_address] = socket_address;
+        ip_address[socket_address] = from_address;
+        for (uint i=0; i<neighbors.length; i++){
+            neighbor_of[from_address][neighbors[i]] = true;
+        }
+
+        return true;
+    }
 
     constructor() payable {
         store = 99;

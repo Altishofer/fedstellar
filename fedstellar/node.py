@@ -242,7 +242,12 @@ class Node(BaseNode):
 
 		# FIXME: check prototype
 		if self.config.participant["use_blockchain"]:
-			self.aggregator = BlockchainReputation(node_name=self.get_name(), config=self.config, learner=self.learner)
+			self.aggregator = BlockchainReputation(
+				node_name=self.get_name(),
+				config=self.config,
+				learner=self.learner,
+				direct_neighbors=config.participant["network_args"]["neighbors"].split()
+			)
 
 		self.__trusted_nei = []
 		self.__is_malicious = False
