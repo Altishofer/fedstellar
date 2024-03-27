@@ -8,33 +8,6 @@ from torch.nn import functional as F
 from typing import OrderedDict, List
 
 
-def cosine_metric2(model1: OrderedDict[str, torch.Tensor], model2: OrderedDict[str, torch.Tensor], similarity: bool = False) -> Optional[float]:
-    if model1 is None or model2 is None:
-        logging.info("Cosine similarity cannot be computed due to missing model")
-        return None
-
-    cos_similarities = []
-
-    for layer in model1:
-        if layer in model2:
-            l1 = model1[layer].flatten()
-            l2 = model2[layer].flatten()
-            if l1.shape != l2.shape:
-                # Adjust the shape of the smaller layer to match the larger layer
-                min_len = min(l1.shape[0], l2.shape[0])
-                l1, l2 = l1[:min_len], l2[:min_len]
-
-            cos_sim = torch.nn.functional.cosine_similarity(l1.unsqueeze(0), l2.unsqueeze(0), dim=1)
-            cos_similarities.append(cos_sim.item())
-
-    if cos_similarities:
-        avg_cos_sim = torch.mean(torch.tensor(cos_similarities))
-        # result = torch.clamp(avg_cos_sim, min=0).item()
-        # return result
-        return avg_cos_sim.item() if similarity else (1 - avg_cos_sim.item())
-    else:
-        return None
-    
 def cosine_metric(model1: OrderedDict, model2: OrderedDict, similarity: bool = False) -> Optional[float]:
     if model1 is None or model2 is None:
         logging.info("Cosine similarity cannot be computed due to missing model")

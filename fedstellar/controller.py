@@ -957,7 +957,7 @@ class Controller:
                     fedstellar-net-scenario:
                         ipv4_address: {}
                     fedstellar-net-base:
-                    proxy:
+                    {}
         """
         )
         participant_template = textwrap.indent(participant_template, " " * 4)
@@ -995,7 +995,7 @@ class Controller:
         )
         participant_gpu_template = textwrap.indent(participant_gpu_template, " " * 4)
 
-        # TODO: hyphens in network names do NOT work
+        # FIXME: hyphens in network names do NOT work
         network_template = textwrap.dedent(
             """
             networks:
@@ -1009,9 +1009,9 @@ class Controller:
                 fedstellar-net-base:
                     name: fedstellar-net-base
                     external: true
-                proxy:
-                    name: chainnet
-                    external: true
+                {}
+                    {}
+                    {}
         """
         )
 
@@ -1037,17 +1037,25 @@ class Controller:
                 )
             else:
                 logging.info("Node {} is using CPU".format(idx))
+                # FIXME: added proxy network for cpu config
                 services += participant_template.format(
                     idx,
                     self.root_path,
                     self.network_gateway,
                     path,
                     node["network_args"]["ip"],
+                    "proxy:" if self.simulation and self.n_validation_nodes else ""
                 )
         docker_compose_file = docker_compose_template.format(services)
+        # FIXME: added proxy network for blockchain
         docker_compose_file += network_template.format(
-            self.network_subnet, self.network_gateway
+            self.network_subnet,
+            self.network_gateway,
+            "proxy:" if self.simulation and self.n_validation_nodes else "",
+            "name: chainnet" if self.simulation and self.n_validation_nodes else "",
+            "external: true" if self.simulation and self.n_validation_nodes else ""
         )
+
         # Write the Docker Compose file in config directory
         with open(f"{self.config_dir}/docker-compose.yml", "w") as f:
             f.write(docker_compose_file)

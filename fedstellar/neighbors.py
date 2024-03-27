@@ -92,6 +92,7 @@ class Neighbors:
         hs = hash(
             str(cmd) + str(args) + str(datetime.now()) + str(random.randint(0, 100000))
         )
+        logging.info(f"cmd: {cmd}, args: {args}, round: {round}")
         logging.info(f"({self.__self_addr}) Building message with hash {hs}")
         args = [str(a) for a in args]
         return node_pb2.Message(
