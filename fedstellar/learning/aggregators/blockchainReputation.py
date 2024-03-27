@@ -56,23 +56,26 @@ class BlockchainReputation(Aggregator):
             logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
             return None
 
-        current_models = {}
-        for subnodes, (submodel, _) in model_obj_collection.items():
-            sublist = subnodes.split()
-            for node in sublist:
-                current_models[node] = submodel
+        # current_models = dict()
+        # for subnodes, (submodel, _) in model_obj_collection.items():
+        #     sublist = subnodes.split()
+        #     for node in sublist:
+        #         current_models[node] = submodel
 
         local_model = self.__learner.get_parameters()
 
+        current_models = {node: submodel for subnodes, (submodel, _) in model_obj_collection.items()
+                          for node in subnodes.split() if node in self.__neighbors}
+        current_models[self.node_name] = local_model
+
         final_model = {layer: torch.zeros_like(param) for layer, param in local_model.items()}
 
-        neighbor_names = [neighbor_name for neighbor_name in current_models.keys() if neighbor_name != self.node_name]
+        neighbor_names = [name for name in current_models.keys() if name != self.node_name]
 
-        opinion_values = {neighbor_name: self.__get_opinion(neighbor_name, local_model, current_models[neighbor_name])
-                          for neighbor_name in neighbor_names}
+        opinion_values = {name: self.__get_opinion(name, local_model, current_models[name]) for name in neighbor_names}
 
-        for neighbor_name, local_opinion in opinion_values.items():
-            self.__blockchain.push_opinion(neighbor_name, local_opinion)
+        for name, local_opinion in opinion_values.items():
+            self.__blockchain.push_opinion(name, local_opinion)
 
         reputation_values = {name: self.__blockchain.get_reputation(name) for name in current_models.keys()}
 
@@ -82,10 +85,9 @@ class BlockchainReputation(Aggregator):
         print(f"AGGREGATION: Reputation for contributions: {reputation_values}", flush=True)
         print(f"AGGREGATION: Normalized reputation for aggregation: {normalized_reputation_values}", flush=True)
 
-        for neighbor_name in neighbor_names:
-            neighbor_model = current_models[neighbor_name]
+        for name, model in current_models.items():
             for layer in final_model:
-                final_model[layer] += neighbor_model[layer] * normalized_reputation_values[neighbor_name]  # * n_samples
+                final_model[layer] += model[layer] * normalized_reputation_values[name]  # * n_samples
 
         print(f"{'*' * 50} BLOCKCHAIN AGGREGATION: FINISHED {'*' * 50}", flush=True)
         return final_model
@@ -197,8 +199,8 @@ class Blockchain:
                     print(f"ORACLE: Blockchain is ready", flush=True)
                     return
             except Exception as e:
-                print(f"EXCEPTION: wait_for_blockchain() => {e}", flush=True)
-                time.sleep(3)
+                print(f"EXCEPTION: wait_for_blockchain() => not ready, sleep 5", flush=True)
+                time.sleep(5)
 
     def __initialize_geth(self):
         web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
