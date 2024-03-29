@@ -96,10 +96,11 @@ class BlockchainReputation(Aggregator):
     def __get_opinion(self, neighbor_name, local_model, untrusted_model):
         # local_opinion = self.cossim_loss_opinion(neighbor_name, local_model, untrusted_model)
         # local_opinion = self.euclidean_opinion(neighbor_name, local_model, untrusted_model)
-        local_opinion = self.minkowski_opinion(neighbor_name, local_model, untrusted_model)
+        local_opinion = self.minkowski_opinion(neighbor_name, local_model, untrusted_model) # 0.08 loss
         # local_opinion = self.manhattan_opinion(neighbor_name, local_model, untrusted_model)
         # local_opinion = self.pearson_correlation_opinion(neighbor_name, local_model, untrusted_model)
         # local_opinion = self.jaccard_opinion(neighbor_name, local_model, untrusted_model)
+        # local_opinion = self.loss_opinion(neighbor_name, local_model, untrusted_model)
         return local_opinion
 
     def cossim_loss_opinion(self, neighbor_name, local_model, untrusted_model):

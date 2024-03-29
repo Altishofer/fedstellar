@@ -58,10 +58,11 @@ contract ReputationSystem {
             // register sender's account address as participant
             // use index of already registered name
             accounts[sender_index] = msg.sender;
+            index_accounts[msg.sender] = sender_index +1;
 
             // register index +1 of participant
             // +1 since solidity initializes all elements to 0
-            index_names[name] = sender_index +1;
+            // index_names[name] = sender_index +1;
         }
 
         // check if neighbors were registered for the adj_matrix before
@@ -104,6 +105,9 @@ contract ReputationSystem {
         require(opinion >= 0, "Opinion should be greater than or equal to 0");
 
         // get adj_matrix indexes of registered participants
+        require(index_accounts[msg.sender] > 0, "msg.sender did not register the neighborhood.");
+        require(index_names[neighbor_name] > 0, "target node did not register their neighborhood.");
+
         uint index_sender = index_accounts[msg.sender] -1;
         uint index_target = index_names[neighbor_name] -1;
 
@@ -112,6 +116,7 @@ contract ReputationSystem {
 
         // push opinion value to Edge object in adj_matrix
         Edge storage edge = adj_matrix[index_sender][index_target];
+
         //edge.opinions.push(opinion);
         edge.opinions.push(opinion);
 
@@ -129,9 +134,14 @@ contract ReputationSystem {
         int256 MULTIPLIER = 1000000;
 
         // get adj_matrix indexes of registered participants
+        require(index_accounts[msg.sender] > 0, "msg.sender did not register the neighborhood.");
+        require(index_names[name_target] > 0, "target node did not register their neighborhood.");
+
+        // get adj_matrix indexes of registered participants
         int index_sender = int(index_accounts[msg.sender] -1);
         int index_target = int(index_names[name_target] -1);
 
+        // check if nodes set up their neighbors
         require(index_sender >= 0 && index_target >= 0, "Nodes are not yet registered.");
 
         // check if nodes did both confirm their neighborhood
