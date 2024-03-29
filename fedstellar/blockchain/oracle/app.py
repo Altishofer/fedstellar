@@ -61,13 +61,13 @@ class Manager:
 		return web3
 
 	def compile_contract(self):
-		with open("faucet.sol", "r") as file:
+		with open("reputation_system.sol", "r") as file:
 			simple_storage_file = file.read()
 		install_solc("0.8.22")
 		compiled_sol = compile_standard(
 			{
 				"language": "Solidity",
-				"sources": {"faucet.sol": {"content": simple_storage_file}},
+				"sources": {"reputation_system.sol": {"content": simple_storage_file}},
 				"settings": {
 					"evmVersion": 'paris',
 					"outputSelection": {
@@ -81,8 +81,8 @@ class Manager:
 		)
 		with open("compiled_code.json", "w") as file:
 			json.dump(compiled_sol, file)
-		contract_bytecode = compiled_sol["contracts"]["faucet.sol"]["Faucet"]["evm"]["bytecode"]["object"]
-		self.contract_abi = json.loads(compiled_sol["contracts"]["faucet.sol"]["Faucet"]["metadata"])["output"]["abi"]
+		contract_bytecode = compiled_sol["contracts"]["reputation_system.sol"]["ReputationSystem"]["evm"]["bytecode"]["object"]
+		self.contract_abi = json.loads(compiled_sol["contracts"]["reputation_system.sol"]["ReputationSystem"]["metadata"])["output"]["abi"]
 		print(f"SUCCESS: Solidity files compiled and bytecode ready")
 		return self.web3.eth.contract(abi=self.contract_abi, bytecode=contract_bytecode)
 

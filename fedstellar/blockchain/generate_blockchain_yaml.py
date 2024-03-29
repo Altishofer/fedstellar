@@ -216,8 +216,8 @@ class Geth:
         source = os.path.join(self.__input_dir, "geth", "genesis.json")
         shutil.copy(source, os.path.join(self.__config_dir, "genesis.json"))
 
-        source = os.path.join(self.__input_dir, "chaincode", "faucet.sol")
-        shutil.copy(source, os.path.join(self.__config_dir, "faucet.sol"))
+        source = os.path.join(self.__input_dir, "chaincode", "reputation_system.sol")
+        shutil.copy(source, os.path.join(self.__config_dir, "reputation_system.sol"))
 
 
 if __name__ == "__main__":

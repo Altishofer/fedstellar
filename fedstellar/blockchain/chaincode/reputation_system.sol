@@ -27,7 +27,7 @@ contract ReputationSystem {
     Edge[] public tmp_array;
 
     function register_neighbors(string[] memory neighbors, string memory name ) external returns (bool) {
-        require(index_accounts[msg.sender] > 0, "Node already declared their neighbors");
+        require(index_accounts[msg.sender] == 0, "Node already declared their neighbors");
 
         // get index of last free position on participants list
         uint256 curr_length = names.length;
@@ -37,14 +37,14 @@ contract ReputationSystem {
         if (sender_index == 0){
 
             // register sender's account address as participant
-            accounts[curr_length] = msg.sender;
+            accounts.push(msg.sender);
 
             // register index +1 of participant
             // +1 since solidity initializes all elements to 0
             index_accounts[msg.sender] = curr_length +1;
 
             // register sender's name as participant
-            names[curr_length] = name;
+            names.push(name);
 
             // register index +1 of participant
             // +1 since solidity initializes all elements to 0
@@ -65,7 +65,8 @@ contract ReputationSystem {
             if (index_names[neighbor] == 0){
                 // if not, register them as participants
                 index_names[neighbor] = names.length;
-                names[names.length] = neighbor;
+                names.push(neighbor);
+                accounts.push(address(0));
             }
         }
 
@@ -74,15 +75,15 @@ contract ReputationSystem {
         for (uint256 y=0; y<adj_matrix.length; y++){
             delete tmp_array;
             for (uint256 x=0; x<adj_matrix.length; x++){
-                tmp_array[x] = adj_matrix[y][x];
+                tmp_array.push(adj_matrix[y][x]);
             }
-            tmp_matrix[y] = tmp_array;
+            tmp_matrix.push(tmp_array);
         }
 
         // register all neighbors for msg.sender
         for (uint j=0; j<neighbors.length; j++){
-            uint256 neighbor_index = index_names[neighbors[j]];
-            adj_matrix[sender_index][neighbor_index -1].neighbor = true;
+            uint256 neighbor_index = index_names[neighbors[j]] -1;
+            adj_matrix[sender_index][neighbor_index].neighbor = true;
         }
 
         // assign the updated adjacency matrix
@@ -172,5 +173,7 @@ contract ReputationSystem {
 
         return final_opinion;
     }
+
+
 
 }
