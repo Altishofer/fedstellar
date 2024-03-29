@@ -1,110 +1,137 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.22;
 
-contract Faucet {
-    address[] public participants;
-    mapping(address => bool) public inParticipants;
+contract ReputationSystem {
 
-    mapping(address => mapping(string => bool)) public neighbor_of;
-    mapping(address => string) public address_ip;
-    mapping(string => address) public ip_address;
-    mapping(address => mapping(string => Node)) private address_ip_node;
+    constructor() payable {}
 
-    struct Node {
-        uint256[] history;
+    struct Edge {
+        bool neighbor;
+        uint256[] opinions;
     }
 
-    function rateNeighbor(string memory to_ip, uint256 opinion)
-        external
-        returns (bool)
-    {
-        require(opinion <= 100, "Opinion should be less than or equal to 100");
-        require(opinion >= 0, "Opinion should be greater than or equal to 0");
-        require(
-            valid_neighbors(msg.sender, to_ip),
-            "The nodes are not confirmed neighbors"
-        );
+    // addresses and names of participants
+    address[] public accounts;
+    string[] public names;
 
-        Node storage neighbor = address_ip_node[msg.sender][to_ip];
-        neighbor.history.push(opinion);
+    // allow fast access of index +1 of names and accounts
+    mapping(address => uint256) public index_accounts;
+    mapping(string => uint256) public index_names;
+
+    // adjacency matrix of reputation system
+    // ordered by index of participants list
+    Edge[][] public adj_matrix;
+
+    // temporary helper structure for simplified copy process
+    Edge[][] public tmp_matrix;
+    Edge[] public tmp_array;
+
+    function register_neighbors(string[] memory neighbors, string memory name ) external returns (bool) {
+        require(index_accounts[msg.sender] > 0, "Node already declared their neighbors");
+
+        // get index of last free position on participants list
+        uint256 curr_length = names.length;
+
+        // check if participant was registered as neighbor before
+        uint256 sender_index = index_names[name];
+        if (sender_index == 0){
+
+            // register sender's account address as participant
+            accounts[curr_length] = msg.sender;
+
+            // register index +1 of participant
+            // +1 since solidity initializes all elements to 0
+            index_accounts[msg.sender] = curr_length +1;
+
+            // register sender's name as participant
+            names[curr_length] = name;
+
+            // register index +1 of participant
+            // +1 since solidity initializes all elements to 0
+            index_names[name] = curr_length +1;
+        } else {
+            // register sender's account address as participant
+            // use index of already registered name
+            accounts[sender_index -1] = msg.sender;
+
+            // register index +1 of participant
+            // +1 since solidity initializes all elements to 0
+            index_names[name] = sender_index;
+        }
+
+        // check if neighbors were registered for the adj_matrix before
+        for (uint i=0; i<neighbors.length; i++){
+            string memory neighbor = neighbors[i];
+            if (index_names[neighbor] == 0){
+                // if not, register them as participants
+                index_names[neighbor] = names.length;
+                names[names.length] = neighbor;
+            }
+        }
+
+        // increase the size of the adj_matrix and reassign the existing values
+        delete tmp_matrix;
+        for (uint256 y=0; y<adj_matrix.length; y++){
+            delete tmp_array;
+            for (uint256 x=0; x<adj_matrix.length; x++){
+                tmp_array[x] = adj_matrix[y][x];
+            }
+            tmp_matrix[y] = tmp_array;
+        }
+
+        // register all neighbors for msg.sender
+        for (uint j=0; j<neighbors.length; j++){
+            uint256 neighbor_index = index_names[neighbors[j]];
+            adj_matrix[sender_index][neighbor_index -1].neighbor = true;
+        }
+
+        // assign the updated adjacency matrix
+        adj_matrix = tmp_matrix;
+
         return true;
     }
 
-    function getReputation_old(string memory to_ip)
-        external
-        view
-        returns (uint256)
-    {
-        int256 MULTIPLIER = 1000000;
+    function rateNeighbor(string memory neighbor_name, uint256 opinion) external returns (bool) {
+        require(opinion <= 100, "Opinion should be less than or equal to 100");
+        require(opinion >= 0, "Opinion should be greater than or equal to 0");
 
-        require(
-            valid_neighbors(msg.sender, to_ip),
-            "The nodes are not confirmed neighbors"
-        );
+        // get adj_matrix indexes of registered participants
+        uint index_sender = index_accounts[msg.sender] -1;
+        uint index_target = index_names[neighbor_name] -1;
 
-        int256[] memory opinions = new int256[](participants.length);
+        // check if nodes did both confirm their neighborship
+        require(valid_neighbors(index_sender, index_target), "Nodes are not confirmed neighbors");
 
-        for (uint256 i = 0; i < participants.length; i++) {
-            address participant = participants[i];
-            uint256[] memory participant_history = address_ip_node[participant][
-                to_ip
-            ].history;
-            uint256 hist_len = participant_history.length;
+        // push opinion value to Edge object in adj_matrix
+        Edge storage edge = adj_matrix[index_sender][index_target];
+        edge.opinions.push(opinion);
 
-            if (hist_len == 0) {
-                continue;
-            }
-
-            int256 sum;
-            for (
-                int256 j = int256(hist_len) - 1;
-                j >= 0 && j >= int256(hist_len) - 3;
-                j--
-            ) {
-                sum += int256(participant_history[uint256(j)]);
-            }
-            sum *= MULTIPLIER;
-
-            opinions[i] = sum / int256(hist_len);
-        }
-
-        int256 n_opinions;
-        int256 sum_opinions;
-        for (uint256 i = 0; i < participants.length; i++) {
-            int256 opinion = opinions[i];
-            if (opinion > 0) {
-                sum_opinions += opinion;
-                n_opinions++;
-            }
-        }
-
-        uint256 final_opinion;
-        if (n_opinions != 0 && sum_opinions != 0) {
-            final_opinion = uint256(sum_opinions / n_opinions / MULTIPLIER);
-        } else {
-            final_opinion = 25;
-        }
-
-        return final_opinion;
+        return true;
     }
 
-    function getReputation(string memory to_ip)
-        external
-        view
-        returns (uint256)
-    {
+    function valid_neighbors(uint node_a, uint node_b) public view returns (bool){
+        return adj_matrix[node_a][node_b].neighbor && adj_matrix[node_b][node_a].neighbor;
+    }
+
+
+    function getReputation(string memory name_target) external view returns (uint256){
+
+        // scale all values up to reduce error due to missing floats in solidity
         int256 MULTIPLIER = 1000000;
 
-        require(
-            valid_neighbors(msg.sender, to_ip),
-            "The nodes are not confirmed neighbors"
-        );
+        // get adj_matrix indexes of registered participants
+        int index_sender = int(index_accounts[msg.sender] -1);
+        int index_target = int(index_names[name_target] -1);
 
-        int256[] memory opinions = new int256[](participants.length);
+        require(index_sender >= 0 && index_target >= 0, "Nodes are not yet registered.");
 
-        for (uint256 i = 0; i < participants.length; i++) {
-            address participant = participants[i];
-            uint256[] memory participant_history = address_ip_node[participant][to_ip].history;
+        // check if nodes did both confirm their neighborship
+        require(valid_neighbors(uint256(index_sender), uint256(index_target)), "Nodes are not confirmed neighbors");
+
+        int256[] memory opinions = new int256[](names.length);
+
+        for (uint256 i = 0; i < names.length; i++) {
+            uint256[] memory participant_history = adj_matrix[i][uint(index_target)].opinions;
             uint256 hist_len = participant_history.length;
 
             if (hist_len == 0) {
@@ -128,7 +155,7 @@ contract Faucet {
 
         int256 n_opinions;
         int256 sum_opinions;
-        for (uint256 i = 0; i < participants.length; i++) {
+        for (uint256 i = 0; i < names.length; i++) {
             int256 opinion = opinions[i];
             if (opinion > 0) {
                 sum_opinions += opinion;
@@ -145,60 +172,5 @@ contract Faucet {
 
         return final_opinion;
     }
-
-
-    function register_neighbors(
-        string[] memory neighbors,
-        string memory socket_address
-    ) external returns (bool) {
-        address from_address = msg.sender;
-
-        require(
-            !inParticipants[from_address],
-            "Sender already registered neighbors."
-        );
-
-        // register msg.sender as participant in federation
-        participants.push(from_address);
-        inParticipants[from_address] = true;
-
-        // register msg.sender as neighbor of himself
-        neighbor_of[from_address][socket_address] = true;
-
-        // register all real neighbors
-        address_ip[from_address] = socket_address;
-        ip_address[socket_address] = from_address;
-        for (uint256 i = 0; i < neighbors.length; i++) {
-            neighbor_of[from_address][neighbors[i]] = true;
-        }
-
-        return true;
-    }
-
-    function valid_neighbors(address from_address, string memory to_ip)
-        public
-        view
-        returns (bool)
-    {
-        string memory from_ip = address_ip[from_address];
-        address to_address = ip_address[to_ip];
-        return neighbor_of[from_address][to_ip] && neighbor_of[to_address][from_ip];
-    }
-
-    function valid_neighbors_debug(string memory from_ip, string memory to_ip)
-        public
-        view
-        returns (bool)
-    {
-        address from_address = ip_address[from_ip];
-        address to_address = ip_address[to_ip];
-        return neighbor_of[from_address][to_ip] && neighbor_of[to_address][from_ip];
-    }
-
-    function neighbor_debug(address from_address, string memory to_ip) external view returns (bool){
-        return neighbor_of[from_address][to_ip];
-    }
-
-    constructor() payable {}
 
 }
