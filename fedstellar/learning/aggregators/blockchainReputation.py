@@ -29,7 +29,8 @@ from web3.middleware import construct_sign_and_send_raw_middleware
 from web3.middleware import geth_poa_middleware
 
 from fedstellar.learning.aggregators.aggregator import Aggregator
-from fedstellar.learning.aggregators.helper import cosine_metric, euclidean_metric, minkowski_metric, manhattan_metric, pearson_correlation_metric, jaccard_metric
+from fedstellar.learning.aggregators.helper import cosine_metric, euclidean_metric, minkowski_metric, manhattan_metric, \
+    pearson_correlation_metric, jaccard_metric
 
 
 class BlockchainReputation(Aggregator):
@@ -104,9 +105,18 @@ class BlockchainReputation(Aggregator):
     def cossim_loss_opinion(self, neighbor_name, local_model, untrusted_model):
         cossim = cosine_metric(local_model, untrusted_model, similarity=True)
         avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
-        local_opinion = max(min(int(cossim * (1 - avg_loss) * 100), 100), 1)
+        local_opinion = max(min(round(cossim * (3 - avg_loss) * 100), 100), 1)
         print(
             f"AGGREGATION: neighbor: {neighbor_name}, cossim: {round(cossim, 2)}, avg_loss: {round(avg_loss, 2)}, 1-avg_loss: {round(1 - avg_loss, 2)} trust: {local_opinion}%",
+            flush=True
+        )
+        return local_opinion
+
+    def loss_opinion(self, neighbor_name, local_model, untrusted_model):
+        avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
+        local_opinion = max(min(round((1 - avg_loss) * 100), 100), 1)
+        print(
+            f"AGGREGATION: neighbor: {neighbor_name}, avg_loss: {round(avg_loss, 2)}, 1-avg_loss: {round(1 - avg_loss, 2)} trust: {local_opinion}%",
             flush=True
         )
         return local_opinion
@@ -201,6 +211,7 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: wait_for_blockchain() => not ready, sleep 5", flush=True)
                 time.sleep(5)
+        raise RuntimeError(f"ERROR: wait_for_blockchain() could not be resolved")
 
     def __initialize_geth(self):
         web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
@@ -228,6 +239,7 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: get_contract_from_oracle() => {e}", flush=True)
                 time.sleep(2)
+        raise RuntimeError(f"ERROR: get_contract_from_oracle() could not be resolved")
 
     def __create_account(self):
         acc = Account.create()
@@ -248,6 +260,7 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: create_account() => {e}", flush=True)
                 time.sleep(2)
+        raise RuntimeError(f"ERROR: create_account() could not be resolved")
 
     def __request_balance(self):
         for _ in range(3):
@@ -262,6 +275,7 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: request_balance() => {e}", flush=True)
                 time.sleep(2)
+        raise RuntimeError(f"ERROR: request_balance() could not be resolved")
 
     def __sign_and_deploy(self, trx_hash):
         s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
@@ -288,6 +302,7 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: push_opinion({ip_address}, {opinion}) => {e}", flush=True)
                 time.sleep(2)
+        print(f"ERROR: push_opinion({ip_address}, {opinion}) could not be resolved", flush=True)
 
     def get_reputation(self, ip_address: str) -> int:
         for _ in range(3):
@@ -302,6 +317,8 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: get_reputation({ip_address}) => {e}", flush=True)
                 time.sleep(2)
+        print(f"ERROR: get_reputation({ip_address}) could not be resolved", flush=True)
+        return 1
 
     def get_raw_reputation(self, ip_address: str) -> list:
         for _ in range(3):
@@ -315,6 +332,7 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: get_raw_reputation({ip_address}) => {e}", flush=True)
                 time.sleep(2)
+        raise RuntimeError(f"ERROR: get_raw_reputation({ip_address})")
 
     def debug_getStrLst(self) -> list:
         for _ in range(3):
@@ -323,11 +341,12 @@ class Blockchain:
                     "from": self.__acc_address,
                     "gasPrice": self.__web3.to_wei("1", "gwei")
                 })
-                print(f"BLOCKCHAIN: getStrLst => {strLst}", flush=True)
+                print(f"BLOCKCHAIN: debug_getStrLst() => {strLst}", flush=True)
                 return strLst
             except Exception as e:
                 print(f"EXCEPTION: debug_getStrLst() => {e}", flush=True)
                 time.sleep(2)
+        raise RuntimeError(f"ERROR: debug_getStrLst()")
 
     def debug_addStr(self, string):
         for _ in range(3):
@@ -349,6 +368,7 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: debug_addStr({string}) => {e}", flush=True)
                 time.sleep(2)
+        raise RuntimeError(f"ERROR: debug_addStr({string})")
 
     def _register_neighbors(self) -> str:
         for _ in range(3):
@@ -371,6 +391,7 @@ class Blockchain:
             except Exception as e:
                 print(f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) => {e}", flush=True)
                 time.sleep(2)
+        raise RuntimeError(f"ERROR: _register_neighbors({self.__neighbors}, {self.__home_ip})")
 
     def __testing(self):
         self._register_neighbors()

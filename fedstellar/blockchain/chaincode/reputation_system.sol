@@ -23,7 +23,6 @@ contract ReputationSystem {
     Edge[][] public adj_matrix;
 
     // temporary helper structure for simplified copy process
-    Edge[][] public tmp_matrix;
     Edge[] public tmp_array;
 
     function register_neighbors(string[] memory neighbors, string memory name ) external returns (bool) {
@@ -49,14 +48,20 @@ contract ReputationSystem {
             // register index +1 of participant
             // +1 since solidity initializes all elements to 0
             index_names[name] = curr_length +1;
+
+            // update the pointer to the senders coordinate in the adj_matrix
+            sender_index = curr_length;
         } else {
+            // update the pointer to the senders coordinate in the adj_matrix
+            sender_index -= 1;
+
             // register sender's account address as participant
             // use index of already registered name
-            accounts[sender_index -1] = msg.sender;
+            accounts[sender_index] = msg.sender;
 
             // register index +1 of participant
             // +1 since solidity initializes all elements to 0
-            index_names[name] = sender_index;
+            index_names[name] = sender_index +1;
         }
 
         // check if neighbors were registered for the adj_matrix before
@@ -64,20 +69,25 @@ contract ReputationSystem {
             string memory neighbor = neighbors[i];
             if (index_names[neighbor] == 0){
                 // if not, register them as participants
-                index_names[neighbor] = names.length;
+                index_names[neighbor] = names.length +1;
                 names.push(neighbor);
                 accounts.push(address(0));
             }
         }
 
-        // increase the size of the adj_matrix and reassign the existing values
-        delete tmp_matrix;
+        // increase the x dimension of the existing adj_matrix
         for (uint256 y=0; y<adj_matrix.length; y++){
-            delete tmp_array;
-            for (uint256 x=0; x<adj_matrix.length; x++){
-                tmp_array.push(adj_matrix[y][x]);
+            for (uint256 x=0; x<names.length - adj_matrix.length; x++){
+                adj_matrix[y].push(Edge(false, new uint256[](0)));
             }
-            tmp_matrix.push(tmp_array);
+        }
+
+        // increase the y dimension of the existing adj_matrix
+        for (uint256 y=0; y<names.length - adj_matrix.length; y++){
+            adj_matrix.push();
+            for (uint256 x=0; x<names.length; x++){
+                adj_matrix[adj_matrix.length -1].push(Edge(false, new uint256[](0)));
+            }
         }
 
         // register all neighbors for msg.sender
@@ -85,9 +95,6 @@ contract ReputationSystem {
             uint256 neighbor_index = index_names[neighbors[j]] -1;
             adj_matrix[sender_index][neighbor_index].neighbor = true;
         }
-
-        // assign the updated adjacency matrix
-        adj_matrix = tmp_matrix;
 
         return true;
     }
@@ -100,18 +107,19 @@ contract ReputationSystem {
         uint index_sender = index_accounts[msg.sender] -1;
         uint index_target = index_names[neighbor_name] -1;
 
-        // check if nodes did both confirm their neighborship
+        // check if nodes did both confirm their neighborhood
         require(valid_neighbors(index_sender, index_target), "Nodes are not confirmed neighbors");
 
         // push opinion value to Edge object in adj_matrix
         Edge storage edge = adj_matrix[index_sender][index_target];
+        //edge.opinions.push(opinion);
         edge.opinions.push(opinion);
 
         return true;
     }
 
     function valid_neighbors(uint node_a, uint node_b) public view returns (bool){
-        return adj_matrix[node_a][node_b].neighbor && adj_matrix[node_b][node_a].neighbor;
+        return adj_matrix[node_a][node_b].neighbor && adj_matrix[node_b][node_a].neighbor || node_a == node_b;
     }
 
 
@@ -126,7 +134,7 @@ contract ReputationSystem {
 
         require(index_sender >= 0 && index_target >= 0, "Nodes are not yet registered.");
 
-        // check if nodes did both confirm their neighborship
+        // check if nodes did both confirm their neighborhood
         require(valid_neighbors(uint256(index_sender), uint256(index_target)), "Nodes are not confirmed neighbors");
 
         int256[] memory opinions = new int256[](names.length);
@@ -135,9 +143,7 @@ contract ReputationSystem {
             uint256[] memory participant_history = adj_matrix[i][uint(index_target)].opinions;
             uint256 hist_len = participant_history.length;
 
-            if (hist_len == 0) {
-                continue;
-            }
+            if (hist_len == 0) {continue;}
 
             int256 sum;
             int256 hist_included;
@@ -173,7 +179,4 @@ contract ReputationSystem {
 
         return final_opinion;
     }
-
-
-
 }
