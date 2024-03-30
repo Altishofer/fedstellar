@@ -19,7 +19,8 @@ CMD exec geth \
     --allow-insecure-unlock \
     --http.port=8545 \
     --rpc.txfeecap 0 \
-    --rpc.gascap 0
+    --rpc.gascap 0 \
+    --rpc.evmtimeout 0
 
 # --netrestrict="172.25.0.0/24" \
 

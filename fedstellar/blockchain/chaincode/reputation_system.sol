@@ -119,8 +119,6 @@ contract ReputationSystem {
             adj_matrix[node.index][neighbor_index].neighbor = true;
         }
 
-        betweenness_centrality();
-
         return true;
     }
 
@@ -290,5 +288,9 @@ contract ReputationSystem {
 
     function getCentrality(string memory ip) public view returns (uint256){
         return names[ip].centrality;
+    }
+
+    function computeCentrality() public returns(bool){
+        return betweenness_centrality();
     }
 }

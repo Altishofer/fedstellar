@@ -27,4 +27,7 @@ CMD exec geth \
     --password ~/.accountpassword \
     --netrestrict="172.25.0.0/24"
 
+# --gpo.ignoreprice 0 \
+# --miner.gasprice 1
+
 EXPOSE $port

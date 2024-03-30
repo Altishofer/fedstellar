@@ -215,7 +215,7 @@ class Blockchain:
         raise RuntimeError(f"ERROR: wait_for_blockchain() could not be resolved")
 
     def __initialize_geth(self):
-        web3 = Web3(Web3.HTTPProvider(self.__rpc_url))
+        web3 = Web3(Web3.HTTPProvider(self.__rpc_url, request_kwargs={'timeout': 30}))
         web3.middleware_onion.inject(geth_poa_middleware, layer=0)
         web3.middleware_onion.add(construct_sign_and_send_raw_middleware(self.__acc))
         web3.eth.default_account = self.__acc_address
@@ -256,7 +256,7 @@ class Blockchain:
                     timeout=10
                 )
                 if r.status_code == 200:
-                    print(f"ORACLE: Received 3 ETH", flush=True)
+                    print(f"ORACLE: Received 500 ETH", flush=True)
                     return acc
             except Exception as e:
                 print(f"EXCEPTION: create_account() => {e}", flush=True)
