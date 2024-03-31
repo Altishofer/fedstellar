@@ -14,8 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
-
-
+import datetime
 import logging
 import time
 
@@ -387,10 +386,10 @@ class Blockchain:
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_reponse = self.__web3.to_json(conf)
-                print(f"BLOCKCHAIN: Neighbors registered on blockchain: {self.__neighbors}", flush=True)
+                print(f"BLOCKCHAIN: Neighbors registered on blockchain: {self.__neighbors} - {datetime.datetime.now()}", flush=True)
                 return json_reponse
             except Exception as e:
-                print(f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) => {e}", flush=True)
+                print(f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) - {datetime.datetime.now()} => {e}", flush=True)
                 time.sleep(2)
         raise RuntimeError(f"ERROR: _register_neighbors({self.__neighbors}, {self.__home_ip})")
 
