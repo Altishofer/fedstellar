@@ -188,7 +188,8 @@ class Blockchain:
         self.__acc = self.__create_account()
         self.__web3 = self.__initialize_geth()
         self.__contract_obj = self.__get_contract_from_oracle()
-        self._register_neighbors()
+        self.__register_neighbors()
+        # self.__verify_centrality()
 
         print(f"BLOCKCHAIN: IP: {self.__home_ip}", flush=True)
         print(f"BLOCKCHAIN: Account address: {self.__acc_address}", flush=True)
@@ -196,6 +197,13 @@ class Blockchain:
 
         # FIXME: remove before pushing to prod
         #self.__testing()
+
+    def __initialize_geth(self):
+        web3 = Web3(Web3.HTTPProvider(self.__rpc_url, request_kwargs={'timeout': 30}))
+        web3.middleware_onion.inject(geth_poa_middleware, layer=0)
+        web3.middleware_onion.add(construct_sign_and_send_raw_middleware(self.__acc))
+        web3.eth.default_account = self.__acc_address
+        return web3
 
     def __wait_for_blockchain(self):
         for _ in range(20):
@@ -212,13 +220,6 @@ class Blockchain:
                 print(f"EXCEPTION: wait_for_blockchain() => not ready, sleep 5", flush=True)
                 time.sleep(5)
         raise RuntimeError(f"ERROR: wait_for_blockchain() could not be resolved")
-
-    def __initialize_geth(self):
-        web3 = Web3(Web3.HTTPProvider(self.__rpc_url, request_kwargs={'timeout': 30}))
-        web3.middleware_onion.inject(geth_poa_middleware, layer=0)
-        web3.middleware_onion.add(construct_sign_and_send_raw_middleware(self.__acc))
-        web3.eth.default_account = self.__acc_address
-        return web3
 
     def __get_contract_from_oracle(self):
         for _ in range(3):
@@ -240,6 +241,25 @@ class Blockchain:
                 print(f"EXCEPTION: get_contract_from_oracle() => {e}", flush=True)
                 time.sleep(2)
         raise RuntimeError(f"ERROR: get_contract_from_oracle() could not be resolved")
+
+    def __verify_centrality(self):
+        for _ in range(3):
+            try:
+                r = requests.get(
+                    url=f"{self.__oracle_url}/verify_centrality",
+                    headers=self.__header,
+                    timeout=10
+                )
+                if r.status_code == 200:
+                    json_response = r.json()
+                    if not json_response.get('valid'):
+                        raise Exception
+                    print(f"ORACLE: Successfully verified centrality values", flush=True)
+                    return json_response.get('valid')
+            except Exception as e:
+                print(f"EXCEPTION: verify_centrality() => {e}", flush=True)
+                time.sleep(2)
+        raise RuntimeError(f"ERROR: verify_centrality() could not be resolved")
 
     def __create_account(self):
         acc = Account.create()
@@ -334,43 +354,7 @@ class Blockchain:
                 time.sleep(2)
         raise RuntimeError(f"ERROR: get_raw_reputation({ip_address})")
 
-    def debug_getStrLst(self) -> list:
-        for _ in range(3):
-            try:
-                strLst = self.__contract_obj.functions.getStrLst().call({
-                    "from": self.__acc_address,
-                    "gasPrice": self.__web3.to_wei("1", "gwei")
-                })
-                print(f"BLOCKCHAIN: debug_getStrLst() => {strLst}", flush=True)
-                return strLst
-            except Exception as e:
-                print(f"EXCEPTION: debug_getStrLst() => {e}", flush=True)
-                time.sleep(2)
-        raise RuntimeError(f"ERROR: debug_getStrLst()")
-
-    def debug_addStr(self, string):
-        for _ in range(3):
-            try:
-                unsigned_trx = self.__contract_obj.functions.addStr(string).build_transaction(
-                    {
-                        "chainId": self.__web3.eth.chain_id,
-                        "from": self.__acc_address,
-                        "nonce": self.__web3.eth.get_transaction_count(
-                            self.__web3.to_checksum_address(self.__acc_address)
-                        ),
-                        "gasPrice": self.__web3.to_wei("1", "gwei")
-                    }
-                )
-                conf = self.__sign_and_deploy(unsigned_trx)
-                json_reponse = self.__web3.to_json(conf)
-                print(f"BLOCKCHAIN: added '{string}' to lst on blockchain", flush=True)
-                return json_reponse
-            except Exception as e:
-                print(f"EXCEPTION: debug_addStr({string}) => {e}", flush=True)
-                time.sleep(2)
-        raise RuntimeError(f"ERROR: debug_addStr({string})")
-
-    def _register_neighbors(self) -> str:
+    def __register_neighbors(self) -> str:
         for _ in range(3):
             try:
                 unsigned_trx = self.__contract_obj.functions.register_neighbors(self.__neighbors,
@@ -394,14 +378,12 @@ class Blockchain:
         raise RuntimeError(f"ERROR: _register_neighbors({self.__neighbors}, {self.__home_ip})")
 
     def __testing(self):
-        self._register_neighbors()
+        self.__register_neighbors()
         for opinion, iteration in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
             print("*" * 50, f"BLOCKCHAIN TESTING: iteration {iteration}", "*" * 50, flush=True)
             start = time.time()
             ip = f"192.168.0.{iteration % 5}"
 
-            self.debug_addStr(str(iteration % 5))
-            self.debug_getStrLst()
             self.push_opinion(ip, opinion)
             self.__request_balance()
             self.get_reputation(ip)

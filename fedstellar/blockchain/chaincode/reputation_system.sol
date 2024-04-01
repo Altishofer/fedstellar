@@ -123,7 +123,7 @@ contract ReputationSystem {
         // return true;
     }
 
-    function adjMatrix() public view returns (bool[] memory){
+    function get_adj() public view returns (bool[] memory){
         bool[] memory r = new bool[](nodes.length * nodes.length);
         uint256 idx;
         for (uint y=0; y<nodes.length; y++){
@@ -316,8 +316,7 @@ contract ReputationSystem {
             total_paths += centrality[t];
         }
 
-        // require(total_paths > 0, "Sum of optimal paths is 0.");
-        if (total_paths == 0){
+        if (total_paths <= 0){
             return true;
         }
 
@@ -327,6 +326,14 @@ contract ReputationSystem {
         }
 
         return true;
+    }
+
+    function get_centrality() public view returns (uint[] memory){
+        uint256[] memory ret = new uint256[](nodes.length);
+        for (uint256 i=0; i<nodes.length; i++){
+            ret[i] = nodes[i].centrality;
+        }
+        return ret;
     }
 
 }
