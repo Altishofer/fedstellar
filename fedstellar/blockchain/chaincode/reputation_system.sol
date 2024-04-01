@@ -166,15 +166,20 @@ contract ReputationSystem {
 
     function rate_neighbors(Dict[] memory neighbors) public returns (bool){
 
+        require(accounts[msg.sender].registered, "msg.sender did not register the neighborhood.");
+
         for (uint i=0; i<neighbors.length; i++){
 
             Dict memory neighbor = neighbors[i];
+
+            if (names[neighbor.key].registered == false){
+                continue;
+            }
 
             require(neighbor.value <= 100, "Opinion should be less than or equal to 100");
             require(neighbor.value >= 0, "Opinion should be greater than or equal to 0");
 
             // get adj_matrix indexes of registered participants
-            require(accounts[msg.sender].registered, "msg.sender did not register the neighborhood.");
             require(names[neighbor.key].registered, "target node did not register their neighborhood.");
 
             uint index_sender = accounts[msg.sender].index;
@@ -191,6 +196,10 @@ contract ReputationSystem {
         }
 
         return true;
+    }
+
+    function confirm_registration() public view returns(bool){
+        return accounts[msg.sender].registered;
     }
 
     function valid_neighbors(uint node_a, uint node_b) public view returns (bool){

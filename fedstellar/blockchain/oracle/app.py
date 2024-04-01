@@ -146,24 +146,6 @@ class Manager:
                 time.sleep(5)
         return print("ERROR: Deployment failed")
 
-    def test_write(self, word: str):
-        unsigned_trx = self.contractObj.functions.writeStore(word).build_transaction(
-            {
-                "chainId": self.web3.eth.chain_id,
-                "from": self.acc.address,
-                "nonce": self.web3.eth.get_transaction_count(self.acc.address),
-                "gasPrice": self.web3.to_wei("1", "gwei")
-            }
-        )
-        conf = self.sign_and_deploy(unsigned_trx)
-        return self.web3.to_json(conf)
-
-    def test_read(self):
-        number = self.contractObj.functions.getStore().call({
-            "from": self.acc.address,
-            "gasPrice": self.web3.to_wei("1", "gwei")
-        })
-        return number
 
     def create_account(self):
         acc = Account.create()
@@ -289,24 +271,9 @@ def faucet():
     })
 
 
-@app.route("/testWrite", methods=["POST"])
-def testNumberWrite():
-    number = request.get_json().get("numberToStore")
-    return jsonify({
-        "Message": m.test_write(number)
-    })
-
-
 @app.route("/verify_centrality", methods=["GET"])
 def verify_centrality():
     return jsonify(m.verify_centrality())
-
-
-@app.route("/testRead", methods=["GET"])
-def testNumberRead():
-    return jsonify({
-        "Message": m.test_read()
-    })
 
 
 @app.route("/createAccount", methods=["GET"])
@@ -318,24 +285,6 @@ def createAccount():
 def getBalance():
     addr = request.get_json().get("address")
     return jsonify(m.get_balance(addr))
-
-
-@app.route("/deploy", methods=["GET"])
-def deployContract():
-    if m.contractAddress:
-        return jsonify(
-            {
-                "message": "SUCCESS",
-                "address": m.contractAddress,
-                "abi": m.contract_abi
-            })
-    m.deploy()
-    return jsonify(
-        {
-            "message": "SUCCESS" if m.contractAddress else "ERROR",
-            "address": m.contractAddress,
-            "abi": m.contract_abi
-        })
 
 
 @app.route("/status", methods=["GET"])

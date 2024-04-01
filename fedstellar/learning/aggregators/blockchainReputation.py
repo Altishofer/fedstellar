@@ -188,8 +188,8 @@ class Blockchain:
         self.__register_neighbors()
         # self.__verify_centrality()
 
-        print(f"BLOCKCHAIN: IP: {self.__home_ip}", flush=True)
-        print(f"BLOCKCHAIN: Account address: {self.__acc_address}", flush=True)
+        print(f"WORKER NODE: Registered account: {self.__home_ip}", flush=True)
+        print(f"WORKER NODE: Account address: {self.__acc_address}", flush=True)
         print(f"{'*' * 50} BLOCKCHAIN INITIALIZATION: FINISHED {'*' * 50}", flush=True)
 
         # FIXME: remove before pushing to prod
@@ -228,7 +228,7 @@ class Blockchain:
                 )
                 if r.status_code == 200:
                     json_response = r.json()
-                    print(f"ORACLE: Reputation system at {json_response.get('address')}",
+                    print(f"ORACLE: Initialized chain code: {json_response.get('address')}",
                           flush=True)
                     return self.__web3.eth.contract(
                         abi=json_response.get("abi"),
@@ -369,14 +369,14 @@ class Blockchain:
                     "gasPrice": self.__web3.to_wei("1", "gwei")
                 })
                 reputations = {name: value for name, value in reputations if len(name)}
-                for ip_address, reputation in reputations:
+                for ip_address, reputation in reputations.items():
                     print(f"BLOCKCHAIN: Reputation of {ip_address} = {reputation}%", flush=True)
                 return reputations
             except Exception as e:
-                print(f"EXCEPTION: get_reputation({ip_addresses}) => {e}", flush=True)
+                print(f"EXCEPTION: get_reputations({ip_addresses}) => {e}", flush=True)
                 time.sleep(2)
-        print(f"ERROR: get_reputation({ip_addresses}) could not be resolved", flush=True)
-        return list()
+        print(f"ERROR: get_reputations({ip_addresses}) could not be resolved", flush=True)
+        return dict()
 
     def get_raw_reputation(self, ip_address: str) -> list:
         for _ in range(3):
@@ -408,8 +408,14 @@ class Blockchain:
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_reponse = self.__web3.to_json(conf)
+                confirmation = self.__contract_obj.functions.confirm_registration().call({
+                    "from": self.__acc_address,
+                    "gasPrice": self.__web3.to_wei("1", "gwei")
+                })
+                if not confirmation:
+                    raise Exception("Registration could not be confirmed")
                 for neighbor in self.__neighbors:
-                    print(f"BLOCKCHAIN: Neighbor registered on blockchain: {neighbor}", flush=True)
+                    print(f"BLOCKCHAIN: Registered neighbor: {neighbor}", flush=True)
                 return json_reponse
             except Exception as e:
                 print(
