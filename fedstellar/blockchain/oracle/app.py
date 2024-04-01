@@ -183,6 +183,16 @@ class Manager:
 
     def verify_centrality(self):
 
+        unsigned_trx = self.contractObj.functions.betweenness_centrality().build_transaction(
+            {
+                "chainId": self.web3.eth.chain_id,
+                "from": self.acc.address,
+                "nonce": self.web3.eth.get_transaction_count(self.acc.address),
+                "gasPrice": self.web3.to_wei("1", "gwei")
+            }
+        )
+        conf = self.sign_and_deploy(unsigned_trx)
+
         adj_list = self.contractObj.functions.get_adj().call({
             "from": self.acc.address,
             "gasPrice": self.web3.to_wei("1", "gwei")

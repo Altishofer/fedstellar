@@ -14,13 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
-import datetime
 import logging
 import time
 
 import requests
 import torch
-from torch import nn
 
 from eth_account import Account
 from web3 import Web3
@@ -74,16 +72,16 @@ class BlockchainReputation(Aggregator):
 
         opinion_values = {name: self.__get_opinion(name, local_model, current_models[name]) for name in neighbor_names}
 
-        for name, local_opinion in opinion_values.items():
-            self.__blockchain.push_opinion(name, local_opinion)
-
         # --------------------------------
+        # for name, local_opinion in opinion_values.items():
+        #     self.__blockchain.push_opinion(name, local_opinion)
+
         # test pushing multiple opinions as dict
         self.__blockchain.push_opinions(opinion_values)
-        self.__blockchain.get_reputations(neighbor_names)
-        # --------------------------------
+        reputation_values = self.__blockchain.get_reputations([name for name in current_models.keys()])
 
-        reputation_values = {name: self.__blockchain.get_reputation(name) for name in current_models.keys()}
+        # reputation_values = {name: self.__blockchain.get_reputation(name) for name in current_models.keys()}
+        # --------------------------------
 
         normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()), 3) for
                                         name in reputation_values}
@@ -370,14 +368,14 @@ class Blockchain:
         print(f"ERROR: get_reputation({ip_address}) could not be resolved", flush=True)
         return 1
 
-    def get_reputations(self, ip_addresses: list) -> list:
+    def get_reputations(self, ip_addresses: list) -> dict:
         for _ in range(3):
             try:
                 reputations = self.__contract_obj.functions.get_reputations(ip_addresses).call({
                     "from": self.__acc_address,
                     "gasPrice": self.__web3.to_wei("1", "gwei")
                 })
-                reputations = [(name, value) for name, value in reputations if len(name)]
+                reputations = {name: value for name, value in reputations if len(name)}
                 for ip_address, reputation in reputations:
                     print(f"BLOCKCHAIN: Reputation of {ip_address} = {reputation}%", flush=True)
                 return reputations
@@ -417,12 +415,12 @@ class Blockchain:
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_reponse = self.__web3.to_json(conf)
-                print(f"BLOCKCHAIN: Neighbors registered on blockchain: {self.__neighbors} - {datetime.datetime.now()}",
+                print(f"BLOCKCHAIN: Neighbors registered on blockchain: {self.__neighbors}",
                       flush=True)
                 return json_reponse
             except Exception as e:
                 print(
-                    f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) - {datetime.datetime.now()} => {e}",
+                    f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) => {e}",
                     flush=True)
                 time.sleep(2)
         raise RuntimeError(f"ERROR: _register_neighbors({self.__neighbors}, {self.__home_ip})")

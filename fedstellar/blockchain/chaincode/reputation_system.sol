@@ -417,7 +417,11 @@ contract ReputationSystem {
 
         // Normalize centrality values and assign them to the nodes
         for (uint256 n = 0; n < nodes.length; n++) {
-            nodes[n].centrality = total_paths > 0 ? (MULTIPLIER * centrality[n]) / total_paths : 0;
+            if (total_paths == 0){
+                nodes[n].centrality = (MULTIPLIER * centrality[n]) / total_paths;
+            } else {
+                nodes[n].centrality = uint256(0);
+            }
         }
 
         return true;
