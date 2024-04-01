@@ -72,16 +72,9 @@ class BlockchainReputation(Aggregator):
 
         opinion_values = {name: self.__get_opinion(name, local_model, current_models[name]) for name in neighbor_names}
 
-        # --------------------------------
-        # for name, local_opinion in opinion_values.items():
-        #     self.__blockchain.push_opinion(name, local_opinion)
-
-        # test pushing multiple opinions as dict
         self.__blockchain.push_opinions(opinion_values)
-        reputation_values = self.__blockchain.get_reputations([name for name in current_models.keys()])
 
-        # reputation_values = {name: self.__blockchain.get_reputation(name) for name in current_models.keys()}
-        # --------------------------------
+        reputation_values = self.__blockchain.get_reputations([name for name in current_models.keys()])
 
         normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()), 3) for
                                         name in reputation_values}
@@ -415,8 +408,8 @@ class Blockchain:
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_reponse = self.__web3.to_json(conf)
-                print(f"BLOCKCHAIN: Neighbors registered on blockchain: {self.__neighbors}",
-                      flush=True)
+                for neighbor in self.__neighbors:
+                    print(f"BLOCKCHAIN: Neighbor registered on blockchain: {neighbor}", flush=True)
                 return json_reponse
             except Exception as e:
                 print(
