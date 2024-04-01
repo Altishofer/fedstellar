@@ -19,6 +19,11 @@ contract ReputationSystem {
         bool existing;
     }
 
+    // Events for debugging
+    event Debug(string what, uint[] variable);
+    event Debug(uint x, uint y, bool neighbors, uint position);
+    event Debug(uint from, uint to, uint fromDist, uint toDist);
+
     // scale all values up to reduce error due to missing floats in solidity
     uint256 MULTIPLIER = 1000000;
 
@@ -91,23 +96,16 @@ contract ReputationSystem {
             }
         }
 
+        // increase the y dimension of the existing adj_matrix's columns
+        while (adj_matrix.length < nodes.length){
+            adj_matrix.push();
+        }
+
         // increase the x dimension of the existing adj_matrix's rows
         for (uint256 y=0; y<adj_matrix.length; y++){
 
-            for (uint256 x=0; x<nodes.length - adj_matrix.length; x++){
-
+            while (adj_matrix[y].length < nodes.length){
                 adj_matrix[y].push(Edge(false, new uint256[](0)));
-            }
-        }
-
-        // increase the y dimension of the existing adj_matrix's columns
-        for (uint256 y=0; y<nodes.length - adj_matrix.length; y++){
-
-            adj_matrix.push();
-
-            for (uint256 x=0; x<nodes.length; x++){
-
-                adj_matrix[adj_matrix.length -1].push(Edge(false, new uint256[](0)));
             }
         }
 
@@ -121,7 +119,8 @@ contract ReputationSystem {
             adj_matrix[node.index][neighbor_index].neighbor = true;
         }
 
-        return true;
+        return betweenness_centrality();
+        // return true;
     }
 
     function adjMatrix() public view returns (bool[] memory){
@@ -220,108 +219,8 @@ contract ReputationSystem {
         return final_opinion;
     }
 
-    event Debug(uint x, uint y, bool neighbors, uint position);
-
-
-    function betweenness_centrality() public returns (uint256[] memory){
-        // This algorithm computes BFS for each node
-        // This function calculates the betweenness centrality for each node in a graph
-        // Betweenness centrality measures how often a node lies on the shortest path between other nodes
-
+    function betweenness_centrality() public returns (bool){
         uint256[] memory centrality = new uint256[](nodes.length);
-
-        // loop over all nodes in adjacency matrix
-        for (uint256 y=0; y<nodes.length; y++){
-
-            for (uint256 x=y+1; x<nodes.length; x++){
-
-                emit Debug(x, y, adj_matrix[y][x].neighbor, 0);
-
-                // skip  nodes without an edge between them
-                if (adj_matrix[y][x].neighbor == false){
-                    continue;
-                }
-
-                // initialize array for recording nodes included in shortest path
-                uint256[] memory shortest_paths = new uint256[](nodes.length);
-                shortest_paths[y] = 1;
-
-                // setup stack for BFS
-                uint256[] memory stack = new uint256[](nodes.length);
-                uint256 stack_length = 0;
-
-                // push starting node to stack
-                stack[stack_length] = y;
-                stack_length++;
-
-                // Perform BFS to find shortest paths
-                while (stack_length > 0){
-
-                    uint256 y_node = stack[stack_length -1];
-                    stack_length--;
-
-                    for (uint256 x_neighbor=0; x_neighbor<nodes.length; x_neighbor++){
-
-                        // skip non-neighboring nodes
-                        if (adj_matrix[y_node][x_neighbor].neighbor == false){
-                            continue;
-                        }
-
-                        // If the neighbor has not been visited yet, update its shortest path count
-                        if (shortest_paths[x_neighbor] == 0){
-
-                            stack[stack_length] = x_neighbor;
-                            stack_length++;
-
-                            shortest_paths[x_neighbor] = shortest_paths[y_node];
-
-                        } else if (shortest_paths[x_neighbor] == shortest_paths[y_node]) {
-                            // If the neighbor has the same shortest path count as the current node,
-                            // add its count to the current node's count
-                            shortest_paths[x_neighbor] += shortest_paths[y_node];
-                        }
-
-                    }
-                }
-
-                // Update centrality values for all nodes except the starting node
-                for (uint i=0; i<nodes.length; i++){
-                    if (i != y && i != x){
-                        centrality[i] += shortest_paths[i];
-                    }
-                }
-            }
-        }
-
-        // Calculate the total number of shortest paths
-        uint256 total_paths;
-        for (uint256 t=0; t<centrality.length; t++){
-            total_paths += centrality[t];
-        }
-
-        // return centrality values for debugging
-        uint256[] memory debug = new uint256[](nodes.length);
-
-        if (total_paths == 0){
-            return debug;
-        }
-
-        // Normalize centrality values and assign them to the nodes
-        for (uint256 n=0; n<nodes.length; n++){
-            nodes[n].centrality = (MULTIPLIER * centrality[n]) / total_paths;
-            debug[n] = (MULTIPLIER * centrality[n]) / total_paths;
-        }
-
-        return debug;
-    }
-
-    function getCentrality(uint256 index) public view returns (uint256){
-        return nodes[index].centrality;
-    }
-
-    function betweenness_centrality_2() public returns (uint256[] memory){
-        uint256[] memory centrality = new uint256[](nodes.length);
-
 
         // Loop over all nodes in adjacency matrix
         for (uint256 y = 0; y < nodes.length; y++) {
@@ -330,28 +229,31 @@ contract ReputationSystem {
 
             // keep record of all parent node in the shortest paths
             uint256[][] memory parent =  new uint256[][](nodes.length);
-            uint256[] memory parent_length = new uint256[](nodes.length);
 
-            // Setup stack for BFS
-            uint256[] memory stack = new uint256[](nodes.length);
-            uint256 stack_length = 0;
+            // Setup queue for BFS
+            uint256[] memory queue = new uint256[](nodes.length);
+            uint256 queue_start = 0;
+            uint256 queue_end = 0;
 
             // Perform BFS for each node
             for (uint256 i = 0; i < nodes.length; i++) {
                 shortest_paths[i] = 0;
                 parent[i] = new uint256[](nodes.length);
+                for (uint j=0; j <nodes.length; j++){
+                    parent[i][j] = 0;
+                }
             }
 
-            // Push starting node to stack
-            stack[0] = y;
-            stack_length = 1;
+            // Push starting node to queue
+            queue[queue_start] = y;
+            queue_end++;
 
             shortest_paths[y] = 1;
 
             // Perform BFS to find shortest paths
-            while (stack_length > 0) {
-                uint256 y_node = stack[stack_length - 1];
-                stack_length--;
+            while (queue_end - queue_start > 0) {
+                uint256 y_node = queue[queue_start];
+                queue_start++;
 
                 for (uint256 x_neighbor = 0; x_neighbor < nodes.length; x_neighbor++) {
                     // Skip non-neighboring nodes
@@ -359,10 +261,10 @@ contract ReputationSystem {
                         continue;
                     }
 
-                    // If the neighbor has not been visited yet, push it to the stack
+                    // If the neighbor has not been visited yet, push it to the queue
                     if (shortest_paths[x_neighbor] == 0) {
-                        stack[stack_length] = x_neighbor;
-                        stack_length++;
+                        queue[queue_end] = x_neighbor;
+                        queue_end++;
 
                         // Update shortest path count for the neighbor
                         shortest_paths[x_neighbor] += shortest_paths[y_node] +1;
@@ -370,23 +272,42 @@ contract ReputationSystem {
 
                     if (shortest_paths[x_neighbor] == shortest_paths[y_node] +1){
                         // record y_node as possible neighbor for x_neighbor if on the shortest path
-                        parent[x_neighbor][parent_length[x_neighbor]] = y_node;
-                        parent_length[x_neighbor]++;
-                    }
-
-                    else {
-                        require(shortest_paths[x_neighbor] < shortest_paths[y_node] +1, "this must hold!");
+                        parent[x_neighbor][y_node] = 1;
                     }
                 }
             }
 
+            uint[] memory n_paths = new uint[](nodes.length);
+            for (uint j=0; j<nodes.length; j++){
+                uint idx;
+                for (uint i=0; i<nodes.length; i++){
+                    if (shortest_paths[i] > shortest_paths[idx]){
+                        idx = i;
+                    }
+                }
+
+                if (shortest_paths[idx] == 0){
+                    continue;
+                }
+
+                for (uint i=0; i<nodes.length; i++){
+                    if (parent[idx][i] == 1){
+                        n_paths[i] += n_paths[idx] +1;
+                    }
+                }
+                emit Debug("shortest_paths", shortest_paths);
+                shortest_paths[idx] = 0;
+
+            }
+            emit Debug("n_paths", n_paths);
 
             // Update centrality values for all nodes except the starting node
             for (uint256 i = 0; i < nodes.length; i++) {
                 if (i != y) {
-                    centrality[i] += shortest_paths[i];
+                    centrality[i] += n_paths[i];
                 }
             }
+            emit Debug("centrality", centrality);
         }
 
         // Calculate the total number of shortest paths
@@ -395,12 +316,17 @@ contract ReputationSystem {
             total_paths += centrality[t];
         }
 
+        // require(total_paths > 0, "Sum of optimal paths is 0.");
+        if (total_paths == 0){
+            return true;
+        }
+
         // Normalize centrality values and assign them to the nodes
         for (uint256 n = 0; n < nodes.length; n++) {
             nodes[n].centrality = (MULTIPLIER * centrality[n]) / total_paths;
         }
 
-        return centrality;
+        return true;
     }
 
 }
