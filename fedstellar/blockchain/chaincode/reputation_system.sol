@@ -19,10 +19,16 @@ contract ReputationSystem {
         bool existing;
     }
 
+    struct Dict {
+        string key;
+        uint256 value;
+    }
+
     // Events for debugging
-    event Debug(string what, uint[] variable);
-    event Debug(uint x, uint y, bool neighbors, uint position);
-    event Debug(uint from, uint to, uint fromDist, uint toDist);
+    event Debug(string what, uint256 variable);
+    event Debug(string what, uint256[] variable);
+    event Debug(uint256 x, uint256 y, bool neighbors, uint position);
+    event Debug(uint256 from, uint256 to, uint256 fromDist, uint256 toDist);
 
     // scale all values up to reduce error due to missing floats in solidity
     uint256 MULTIPLIER = 1000000;
@@ -158,6 +164,35 @@ contract ReputationSystem {
         return true;
     }
 
+    function rate_neighbors(Dict[] memory neighbors) public returns (bool){
+
+        for (uint i=0; i<neighbors.length; i++){
+
+            Dict memory neighbor = neighbors[i];
+
+            require(neighbor.value <= 100, "Opinion should be less than or equal to 100");
+            require(neighbor.value >= 0, "Opinion should be greater than or equal to 0");
+
+            // get adj_matrix indexes of registered participants
+            require(accounts[msg.sender].registered, "msg.sender did not register the neighborhood.");
+            require(names[neighbor.key].registered, "target node did not register their neighborhood.");
+
+            uint index_sender = accounts[msg.sender].index;
+            uint index_target = names[neighbor.key].index;
+
+            // check if nodes did both confirm their neighborhood
+            require(valid_neighbors(index_sender, index_target), "Nodes are not confirmed neighbors");
+
+            // push opinion value to Edge object in adj_matrix
+            Edge storage edge = adj_matrix[index_sender][index_target];
+
+            //edge.opinions.push(opinion);
+            edge.opinions.push(neighbor.value);
+        }
+
+        return true;
+    }
+
     function valid_neighbors(uint node_a, uint node_b) public view returns (bool){
         return (adj_matrix[node_a][node_b].neighbor && adj_matrix[node_b][node_a].neighbor) || node_a == node_b;
     }
@@ -217,6 +252,70 @@ contract ReputationSystem {
         }
 
         return final_opinion;
+    }
+
+    function get_reputations(string[] memory neighbors) public view returns (Dict[] memory){
+
+        Dict[] memory reputations = new Dict[](nodes.length);
+
+        for (uint j=0; j<neighbors.length; j++){
+
+            string memory name_target = neighbors[j];
+
+            // get adj_matrix indexes of registered participants
+            require(accounts[msg.sender].registered, "msg.sender did not register the neighborhood.");
+            require(names[name_target].registered, "target node did not register their neighborhood.");
+
+            // get adj_matrix indexes of registered participants
+            uint256 index_sender = accounts[msg.sender].index;
+            uint256 index_target = names[name_target].index;
+
+            // check if nodes did both confirm their neighborhood
+            require(valid_neighbors(index_sender, index_target), "Nodes are not confirmed neighbors");
+
+            uint256[] memory opinions = new uint256[](nodes.length);
+
+            for (uint256 i = 0; i < nodes.length; i++) {
+                uint256[] memory participant_history = adj_matrix[i][index_target].opinions;
+                uint256 hist_len = participant_history.length;
+
+                if (hist_len == 0) {continue;}
+
+                uint256 sum;
+                uint256 hist_included;
+                for (
+                    int256 x = int256(hist_len) - 1;
+                    x >= 0 && x >= int256(hist_len) - 3;
+                    x--
+                ) {
+                    hist_included++;
+                    sum += participant_history[uint256(x)];
+                }
+                sum *= MULTIPLIER;
+
+                opinions[i] = sum / uint256(hist_included);
+            }
+
+            uint256 n_opinions;
+            uint256 sum_opinions;
+            for (uint256 i = 0; i < nodes.length; i++) {
+                uint256 opinion = opinions[i];
+                if (opinion > 0) {
+                    sum_opinions += opinion;
+                    n_opinions++;
+                }
+            }
+
+            uint256 final_opinion;
+            if (n_opinions != 0 && sum_opinions != 0) {
+                final_opinion = uint256(sum_opinions / n_opinions / MULTIPLIER);
+            } else {
+                final_opinion = 25;
+            }
+
+            reputations[j] = Dict(name_target, final_opinion);
+        }
+        return reputations;
     }
 
     function betweenness_centrality() public returns (bool){
@@ -316,13 +415,9 @@ contract ReputationSystem {
             total_paths += centrality[t];
         }
 
-        if (total_paths <= 0){
-            return true;
-        }
-
         // Normalize centrality values and assign them to the nodes
         for (uint256 n = 0; n < nodes.length; n++) {
-            nodes[n].centrality = (MULTIPLIER * centrality[n]) / total_paths;
+            nodes[n].centrality = total_paths > 0 ? (MULTIPLIER * centrality[n]) / total_paths : 0;
         }
 
         return true;
@@ -335,5 +430,4 @@ contract ReputationSystem {
         }
         return ret;
     }
-
 }

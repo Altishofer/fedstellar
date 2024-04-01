@@ -77,6 +77,12 @@ class BlockchainReputation(Aggregator):
         for name, local_opinion in opinion_values.items():
             self.__blockchain.push_opinion(name, local_opinion)
 
+        # --------------------------------
+        # test pushing multiple opinions as dict
+        self.__blockchain.push_opinions(opinion_values)
+        self.__blockchain.get_reputations(neighbor_names)
+        # --------------------------------
+
         reputation_values = {name: self.__blockchain.get_reputation(name) for name in current_models.keys()}
 
         normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()), 3) for
@@ -324,6 +330,30 @@ class Blockchain:
                 time.sleep(2)
         print(f"ERROR: push_opinion({ip_address}, {opinion}) could not be resolved", flush=True)
 
+    def push_opinions(self, opinion_dict: dict):
+        tuples = [(name, opinion) for name, opinion in opinion_dict.items()]
+        for _ in range(3):
+            try:
+                unsigned_trx = self.__contract_obj.functions.rate_neighbors(tuples).build_transaction(
+                    {
+                        "chainId": self.__web3.eth.chain_id,
+                        "from": self.__acc_address,
+                        "nonce": self.__web3.eth.get_transaction_count(
+                            self.__web3.to_checksum_address(self.__acc_address)
+                        ),
+                        "gasPrice": self.__web3.to_wei("1", "gwei")
+                    }
+                )
+                conf = self.__sign_and_deploy(unsigned_trx)
+                json_response = self.__web3.to_json(conf)
+                for ip_address, opinion in opinion_dict.items():
+                    print(f"BLOCKCHAIN: Rating {ip_address} with {opinion}%", flush=True)
+                return json_response
+            except Exception as e:
+                print(f"EXCEPTION: push_opinions({opinion_dict}) => {e}", flush=True)
+                time.sleep(2)
+        print(f"ERROR: push_opinion({opinion_dict}) could not be resolved", flush=True)
+
     def get_reputation(self, ip_address: str) -> int:
         for _ in range(3):
             try:
@@ -339,6 +369,23 @@ class Blockchain:
                 time.sleep(2)
         print(f"ERROR: get_reputation({ip_address}) could not be resolved", flush=True)
         return 1
+
+    def get_reputations(self, ip_addresses: list) -> list:
+        for _ in range(3):
+            try:
+                reputations = self.__contract_obj.functions.get_reputations(ip_addresses).call({
+                    "from": self.__acc_address,
+                    "gasPrice": self.__web3.to_wei("1", "gwei")
+                })
+                reputations = [(name, value) for name, value in reputations if len(name)]
+                for ip_address, reputation in reputations:
+                    print(f"BLOCKCHAIN: Reputation of {ip_address} = {reputation}%", flush=True)
+                return reputations
+            except Exception as e:
+                print(f"EXCEPTION: get_reputation({ip_addresses}) => {e}", flush=True)
+                time.sleep(2)
+        print(f"ERROR: get_reputation({ip_addresses}) could not be resolved", flush=True)
+        return list()
 
     def get_raw_reputation(self, ip_address: str) -> list:
         for _ in range(3):
@@ -370,10 +417,13 @@ class Blockchain:
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_reponse = self.__web3.to_json(conf)
-                print(f"BLOCKCHAIN: Neighbors registered on blockchain: {self.__neighbors} - {datetime.datetime.now()}", flush=True)
+                print(f"BLOCKCHAIN: Neighbors registered on blockchain: {self.__neighbors} - {datetime.datetime.now()}",
+                      flush=True)
                 return json_reponse
             except Exception as e:
-                print(f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) - {datetime.datetime.now()} => {e}", flush=True)
+                print(
+                    f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) - {datetime.datetime.now()} => {e}",
+                    flush=True)
                 time.sleep(2)
         raise RuntimeError(f"ERROR: _register_neighbors({self.__neighbors}, {self.__home_ip})")
 
