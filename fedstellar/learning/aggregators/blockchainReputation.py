@@ -375,12 +375,14 @@ class Blockchain:
                     "gasPrice": self.__web3.to_wei("1", "gwei")
                 })
                 print(reputations, flush=True)
-                reputations = dict()
-                for name, reputation, stddev_count, final_reputation, avg, stddev in reputations.items():
+                results = dict()
+                for name, reputation, stddev_count, final_reputation, avg, stddev in reputations:
                     print(name, reputation, stddev_count, final_reputation, avg, stddev, flush=True)
-                    if len(name): reputations[name] = final_reputation
+                    if len(name):
+                        results[name] = final_reputation
                     print(f"BLOCKCHAIN: Reputation of {name} = {final_reputation}%", flush=True)
-                return reputations
+                return results
+
             except Exception as e:
                 print(f"EXCEPTION: get_reputations({ip_addresses}) => {e}", flush=True)
                 time.sleep(2)

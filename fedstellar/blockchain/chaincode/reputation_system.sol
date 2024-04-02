@@ -335,7 +335,7 @@ contract ReputationSystem {
             emit Debug("reputation", clean_reputations[i].reputation);
         }
 
-        return reputations;
+        return clean_reputations;
     }
 
     function abs(int x) private pure returns (uint) {
