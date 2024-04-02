@@ -247,7 +247,7 @@ class Manager:
             for i in range(len(nodes)):
                 if i != y:
                     oracle_centrality[i] += n_paths[i]
-        oracle_centrality = [int(c * 10e5 // sum(oracle_centrality)) for c in oracle_centrality]
+        oracle_centrality = [int(c * 10e5 // (sum(oracle_centrality) if sum(oracle_centrality) else 1)) for c in oracle_centrality]
         result = [int(x) == int(y) for x, y in zip(oracle_centrality, blockchain_centrality)]
         return {
             "valid": all(result),

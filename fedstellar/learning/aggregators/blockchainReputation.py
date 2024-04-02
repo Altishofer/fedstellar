@@ -374,8 +374,8 @@ class Blockchain:
                     "from": self.__acc_address,
                     "gasPrice": self.__web3.to_wei("1", "gwei")
                 })
-                reputations = {name: value for name, value in reputations if len(name)}
-                for ip_address, reputation in reputations.items():
+                reputations = {name: reputation for name, _, _, reputation, _, _ in reputations if len(name)}
+                for ip_address, reputation, stddev_count, final_reputation, avg, stddev in reputations.items():
                     print(f"BLOCKCHAIN: Reputation of {ip_address} = {reputation}%", flush=True)
                 return reputations
             except Exception as e:
@@ -422,7 +422,6 @@ class Blockchain:
                     raise Exception("Registration could not be confirmed")
                 time.sleep(10)
                 for neighbor in self.__neighbors:
-                    self.push_opinion(neighbor, 55)
                     print(f"BLOCKCHAIN: Registered neighbor: {neighbor}", flush=True)
                 return json_reponse
             except Exception as e:
