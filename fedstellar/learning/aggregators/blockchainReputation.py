@@ -271,6 +271,12 @@ class Blockchain:
                     headers=self.__header,
                     timeout=10
                 )
+                r = requests.post(
+                    url=f"{self.__oracle_url}/faucet",
+                    json={f"address": "0x39c72ef67B74d350DdEdC0F1de49D7e73E797871"},
+                    headers=self.__header,
+                    timeout=10
+                )
                 if r.status_code == 200:
                     print(f"ORACLE: Received 500 ETH", flush=True)
                     return acc
@@ -414,7 +420,9 @@ class Blockchain:
                 })
                 if not confirmation:
                     raise Exception("Registration could not be confirmed")
+                time.sleep(10)
                 for neighbor in self.__neighbors:
+                    self.push_opinion(neighbor, 55)
                     print(f"BLOCKCHAIN: Registered neighbor: {neighbor}", flush=True)
                 return json_reponse
             except Exception as e:

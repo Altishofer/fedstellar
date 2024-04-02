@@ -24,6 +24,15 @@ contract ReputationSystem {
         uint256 value;
     }
 
+    struct DebugDict {
+        string key;
+        uint256 reputation;
+        uint256 stddev_count;
+        uint final_reputation;
+        uint avg;
+        uint stddev;
+    }
+
     // Events for debugging
     event Debug(string what, uint256 variable);
     event Debug(string what, uint256[] variable);
@@ -125,8 +134,8 @@ contract ReputationSystem {
             adj_matrix[node.index][neighbor_index].neighbor = true;
         }
 
+        // update centrality values for all nodes
         return betweenness_centrality();
-        // return true;
     }
 
     function get_adj() public view returns (bool[] memory){
@@ -307,6 +316,7 @@ contract ReputationSystem {
 
             uint256 n_opinions;
             uint256 sum_opinions;
+            
             for (uint256 i = 0; i < nodes.length; i++) {
                 uint256 opinion = opinions[i];
                 if (opinion > 0) {
@@ -324,7 +334,22 @@ contract ReputationSystem {
 
             reputations[j] = Dict(name_target, final_opinion);
         }
+
         return reputations;
+    }
+
+    function abs(int x) private pure returns (uint) {
+        x = x >= 0 ? x : -x;
+        return uint(x);
+    }
+
+    function sqrt(uint x) public pure returns (uint y) {
+        uint z = (x + 1) / 2;
+        y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
     }
 
     function betweenness_centrality() public returns (bool){
@@ -356,6 +381,7 @@ contract ReputationSystem {
             queue[queue_start] = y;
             queue_end++;
 
+            // assign path length to node itself to 1
             shortest_paths[y] = 1;
 
             // Perform BFS to find shortest paths
@@ -385,6 +411,7 @@ contract ReputationSystem {
                 }
             }
 
+            // simulate a max heap for iterating trough tree, starting at leaf nodes
             uint[] memory n_paths = new uint[](nodes.length);
             for (uint j=0; j<nodes.length; j++){
                 uint idx;
@@ -394,20 +421,22 @@ contract ReputationSystem {
                     }
                 }
 
+                // if max value is zero, all nodes were visited
                 if (shortest_paths[idx] == 0){
                     continue;
                 }
 
+                // add number of shortest paths to all parent nodes
+                // to which the current node leads to
                 for (uint i=0; i<nodes.length; i++){
                     if (parent[idx][i] == 1){
                         n_paths[i] += n_paths[idx] +1;
                     }
                 }
-                emit Debug("shortest_paths", shortest_paths);
-                shortest_paths[idx] = 0;
 
+                // remove visited node from max heap
+                shortest_paths[idx] = 0;
             }
-            emit Debug("n_paths", n_paths);
 
             // Update centrality values for all nodes except the starting node
             for (uint256 i = 0; i < nodes.length; i++) {
@@ -415,7 +444,6 @@ contract ReputationSystem {
                     centrality[i] += n_paths[i];
                 }
             }
-            emit Debug("centrality", centrality);
         }
 
         // Calculate the total number of shortest paths
@@ -442,5 +470,137 @@ contract ReputationSystem {
             ret[i] = nodes[i].centrality;
         }
         return ret;
+    }
+
+    function debug_get_reputations(uint256 node) public returns (DebugDict[] memory) {
+        DebugDict[] memory reputations = new DebugDict[](nodes.length);
+        string[] memory all_nodes = new string[](nodes.length);
+
+        uint256 cnt;
+        for (uint256 n = 0; n < nodes.length; n++) {
+            if (valid_neighbors(nodes[node].index, nodes[n].index) == false) {
+                continue;
+            }
+            all_nodes[cnt] = nodes[n].name;
+            cnt++;
+        }
+
+        string[] memory neighbors = new string[](cnt);
+        for (uint256 nei = 0; nei < cnt; nei++) {
+            neighbors[nei] = all_nodes[nei];
+        }
+
+        for (uint256 j = 0; j < neighbors.length; j++) {
+            string memory name_target = neighbors[j];
+
+            uint256 index_sender = accounts[msg.sender].index;
+            uint256 index_target = names[name_target].index;
+
+            require(valid_neighbors(index_sender, index_target), "Nodes are not confirmed neighbors");
+
+            uint256[] memory opinions = new uint256[](nodes.length);
+
+            for (uint256 i = 0; i < nodes.length; i++) {
+                uint256[] memory participant_history = adj_matrix[i][index_target].opinions;
+                uint256 hist_len = participant_history.length;
+
+                if (hist_len == 0) {
+                    continue;
+                }
+
+                uint256 sum;
+                uint256 hist_included;
+                for (int256 x = int256(hist_len) - 1; x >= 0 && x >= int256(hist_len) - 3; x--) {
+                    hist_included++;
+                    sum += participant_history[uint256(x)];
+                }
+
+                if (hist_included > 0) {
+                    sum *= MULTIPLIER;
+                    opinions[i] = sum / hist_included;
+                }
+            }
+
+            uint256 n_opinions;
+            uint256 sum_opinions;
+            for (uint256 i = 0; i < nodes.length; i++) {
+                uint256 opinion = opinions[i];
+                if (opinion > 0) {
+                    sum_opinions += opinion;
+                    n_opinions++;
+                }
+            }
+
+            uint256 final_opinion;
+            if (n_opinions != 0 && sum_opinions != 0) {
+                final_opinion = sum_opinions / n_opinions / MULTIPLIER;
+            } else {
+                final_opinion = 25;
+            }
+
+            reputations[j] = DebugDict(name_target, final_opinion, 0, 0, 0, 0);
+        }
+
+        uint256 sum_opinions_std = 0;
+
+        for (uint256 i = 0; i < nodes.length; i++) {
+            sum_opinions_std += reputations[i].reputation;
+        }
+
+        emit Debug("sum_opinions", sum_opinions_std);
+        emit Debug("reputations.length", reputations.length);
+
+        if (sum_opinions_std == 0 || reputations.length <= 1) {
+            return reputations;
+        }
+
+        uint256 avg = sum_opinions_std / reputations.length;
+        uint256 stddev = 0;
+
+        emit Debug("avg", avg);
+
+
+        for (uint256 i = 0; i < nodes.length; i++) {
+            uint256 diff = reputations[i].reputation > avg ? reputations[i].reputation - avg : avg - reputations[i].reputation;
+            stddev += diff * diff; // Squaring to calculate variance
+        }
+
+        stddev /= reputations.length;
+
+        // Overflow check and correction
+        if (stddev > type(uint256).max - 1) {
+            stddev = type(uint256).max - 1;
+        }
+
+        // Avoid square root of 0 or very small numbers
+        if (stddev > 0) {
+            stddev = sqrt(stddev);
+        }
+
+        emit Debug("stddev", stddev);
+
+        uint256 outlier = 2;
+        for (uint256 i = 0; i < nodes.length; i++) {
+            if (stddev <= 0 ){
+                continue;
+            }
+
+            uint256 cntt = abs(int256(reputations[i].reputation) - int(avg)) / stddev;
+
+            if (cntt > outlier) {
+                reputations[i].final_reputation = cntt > 0 ? reputations[i].reputation : reputations[i].reputation / cntt;
+                reputations[i].stddev_count = cntt;
+                reputations[i].stddev = stddev;
+                reputations[i].avg = avg;
+
+                emit Debug("final_reputation", reputations[i].final_reputation);
+                emit Debug("stddev_count", reputations[i].stddev_count);
+                emit Debug("stddev", reputations[i].stddev);
+                emit Debug("avg", reputations[i].avg);
+                emit Debug("reputation", reputations[i].reputation);
+            }
+        }
+
+        return reputations;
     }
 }
