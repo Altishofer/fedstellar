@@ -255,31 +255,38 @@ contract ReputationSystem {
             reputations[j] = DebugDict(name_target, final_opinion, 0, 0, 0, 0);
         }
 
-        uint256 sum_opinions_std = 0;
+        uint256 sum_reputations = 0;
+        uint256 n_reputations = 0;
 
         for (uint256 i = 0; i < nodes.length; i++) {
-            sum_opinions_std += reputations[i].reputation;
+            if (reputations[i].reputation > 0){
+                n_reputations++;
+            }
+        }
+        emit Debug("n_reputations", n_reputations);
+
+        DebugDict[] memory clean_reputations = new DebugDict[](n_reputations);
+        for (uint256 i = 0; i < n_reputations; i++) {
+            clean_reputations[i] = reputations[i];
+            sum_reputations += reputations[i].reputation;
+        }
+        emit Debug("sum_reputations", sum_reputations);
+
+        if (sum_reputations <= 0 || n_reputations <= 1) {
+            return clean_reputations;
         }
 
-        emit Debug("sum_opinions", sum_opinions_std);
-        emit Debug("reputations.length", reputations.length);
-
-        if (sum_opinions_std == 0 || reputations.length <= 1) {
-            return reputations;
-        }
-
-        uint256 avg = sum_opinions_std / reputations.length;
+        uint256 avg = sum_reputations / n_reputations;
         uint256 stddev = 0;
 
         emit Debug("avg", avg);
 
-
-        for (uint256 i = 0; i < nodes.length; i++) {
-            uint256 diff = reputations[i].reputation > avg ? reputations[i].reputation - avg : avg - reputations[i].reputation;
+        for (uint256 i = 0; i < n_reputations; i++) {
+            uint256 diff = clean_reputations[i].reputation > avg ? clean_reputations[i].reputation - avg : avg - clean_reputations[i].reputation;
             stddev += diff * diff; // Squaring to calculate variance
         }
 
-        stddev /= reputations.length;
+        stddev /= n_reputations;
 
         // Overflow check and correction
         if (stddev > type(uint256).max - 1) {
@@ -293,39 +300,39 @@ contract ReputationSystem {
 
         emit Debug("stddev", stddev);
 
-        for (uint256 i = 0; i < nodes.length; i++) {
+        for (uint256 i = 0; i < n_reputations; i++) {
 
             uint256 cntt = 1;
 
             if (
                     stddev > 0 &&
-                    reputations[i].reputation < avg &&
-                    abs(int256(reputations[i].reputation) - int(avg)) / stddev >= 2
+                    clean_reputations[i].reputation < avg &&
+                    abs(int256(clean_reputations[i].reputation) - int(avg)) / stddev >= 2
                 ){
 
-                cntt = (abs(int256(reputations[i].reputation) - int(avg)) / stddev ) -1;
+                cntt = (abs(int256(clean_reputations[i].reputation) - int(avg)) / stddev ) -1;
                 require(cntt > 1, "stddev <= 1");
 
-                uint f = cntt * (MULTIPLIER + names[reputations[i].key].centrality);
+                uint f = cntt * (MULTIPLIER + names[clean_reputations[i].key].centrality);
                 require(f > 0, "f <= 0");
                 emit Debug("f", f);
 
-                reputations[i].final_reputation = reputations[i].reputation / f;
+                clean_reputations[i].final_reputation = clean_reputations[i].reputation / f;
 
             } else {
-                reputations[i].final_reputation = reputations[i].reputation / MULTIPLIER;
+                clean_reputations[i].final_reputation = reputations[i].reputation / MULTIPLIER;
             }
 
-            reputations[i].reputation /= MULTIPLIER;
-            reputations[i].stddev_count = cntt;
-            reputations[i].stddev = stddev / MULTIPLIER;
-            reputations[i].avg = avg / MULTIPLIER;
+            clean_reputations[i].reputation /= MULTIPLIER;
+            clean_reputations[i].stddev_count = cntt;
+            clean_reputations[i].stddev = stddev / MULTIPLIER;
+            clean_reputations[i].avg = avg / MULTIPLIER;
 
-            emit Debug("final_reputation", reputations[i].final_reputation);
-            emit Debug("stddev_count", reputations[i].stddev_count);
-            emit Debug("stddev", reputations[i].stddev);
-            emit Debug("avg", reputations[i].avg);
-            emit Debug("reputation", reputations[i].reputation);
+            emit Debug("final_reputation", clean_reputations[i].final_reputation);
+            emit Debug("stddev_count", clean_reputations[i].stddev_count);
+            emit Debug("stddev", clean_reputations[i].stddev);
+            emit Debug("avg", clean_reputations[i].avg);
+            emit Debug("reputation", clean_reputations[i].reputation);
         }
 
         return reputations;
