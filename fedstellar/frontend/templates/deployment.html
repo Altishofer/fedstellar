@@ -798,6 +798,21 @@
                 document.getElementById("roundsAdditionalParticipant" + i).value = data["additional_participants"][i]["round"];
             }
         }
+        // Blockchain
+        try {
+            console.log(data["n_validation_nodes"], typeof data["n_validation_nodes"]);
+            console.log(data["use_blockchain"], typeof data["use_blockchain"]);
+            document.getElementById("blockchain-nodes").value = data["n_validation_nodes"];
+            document.getElementById("blockchain-config").style.display = data["use_blockchain"] ? "block" : "none";
+            document.getElementById("yes-blockchain-btn").checked = data["use_blockchain"];
+            //document.getElementById("no-blockchain-button").checked = !data["use_blockchain"];
+            // updateGraph();
+            // $('#predefined-topology-select').trigger('change');
+            nodes = data["nodes"];
+        } catch (error) {
+            console.error("An error occurred:", error);
+        }
+
     }
 </script>
 

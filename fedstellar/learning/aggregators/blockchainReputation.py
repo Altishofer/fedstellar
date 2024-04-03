@@ -76,7 +76,7 @@ class BlockchainReputation(Aggregator):
 
         reputation_values = self.__blockchain.get_reputations([name for name in current_models.keys()])
 
-        normalized_reputation_values = {name: round(reputation_values[name] / sum(reputation_values.values()), 3) for
+        normalized_reputation_values = {name: round(reputation_values[name] / (((sum(reputation_values.values()) if sum(reputation_values.values()) > 0 else 1))), 3) for
                                         name in reputation_values}
 
         print(f"AGGREGATION: Reputation for contributions: {reputation_values}", flush=True)
@@ -374,13 +374,14 @@ class Blockchain:
                     "from": self.__acc_address,
                     "gasPrice": self.__web3.to_wei("1", "gwei")
                 })
-                print(reputations, flush=True)
+                if reputations:
+                    print(f"BLOCKCHAIN: Reputations: AVG = {reputations[0][4]}%, Stddev = {reputations[0][5]}", flush=True)
+                print(reputations)
                 results = dict()
-                for name, reputation, stddev_count, final_reputation, avg, stddev in reputations:
-                    print(name, reputation, stddev_count, final_reputation, avg, stddev, flush=True)
-                    if len(name):
+                for name, reputation, stddev_count, final_reputation, avg, stddev, centrality, difference, malicious in reputations:
+                    if name:
                         results[name] = final_reputation
-                    print(f"BLOCKCHAIN: Reputation of {name} = {final_reputation}%", flush=True)
+                    print(f"BLOCKCHAIN: Reputation of {name} = {final_reputation}%, stddev_cnt < {stddev_count} centrality = {centrality}, difference = {difference}, malicious = {malicious}", flush=True)
                 return results
 
             except Exception as e:
@@ -406,6 +407,7 @@ class Blockchain:
     def __register_neighbors(self) -> str:
         for _ in range(3):
             try:
+                print(f"start registering")
                 unsigned_trx = self.__contract_obj.functions.register_neighbors(self.__neighbors,
                                                                                 self.__home_ip).build_transaction(
                     {
@@ -425,7 +427,6 @@ class Blockchain:
                 })
                 if not confirmation:
                     raise Exception("Registration could not be confirmed")
-                time.sleep(10)
                 for neighbor in self.__neighbors:
                     print(f"BLOCKCHAIN: Registered neighbor: {neighbor}", flush=True)
                 return json_reponse
