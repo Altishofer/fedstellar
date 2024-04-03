@@ -48,7 +48,7 @@ class BlockchainReputation(Aggregator):
 
     def aggregate(self, model_obj_collection):
 
-        print(f"{'*' * 50} BLOCKCHAIN AGGREGATION: START {'*' * 50}")
+        print(f"{'-' * 25} BLOCKCHAIN AGGREGATION: START {'-' * 25}")
 
         if not len(model_obj_collection):
             logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
@@ -86,7 +86,7 @@ class BlockchainReputation(Aggregator):
             for layer in final_model:
                 final_model[layer] += model[layer] * normalized_reputation_values[name]  # * n_samples
 
-        print(f"{'*' * 50} BLOCKCHAIN AGGREGATION: FINISHED {'*' * 50}", flush=True)
+        print(f"{'*' * 50} BLOCKCHAIN AGGREGATION: FINISHED {'-' * 25}", flush=True)
         return final_model
 
     def __get_opinion(self, neighbor_name, local_model, untrusted_model):
@@ -167,7 +167,7 @@ class BlockchainReputation(Aggregator):
 class Blockchain:
 
     def __init__(self, neighbors, home_address):
-        print(f"{'*' * 50} BLOCKCHAIN INITIALIZATION: START {'*' * 50}", flush=True)
+        print(f"{'-' * 25} BLOCKCHAIN INITIALIZATION: START {'-' * 25}", flush=True)
 
         self.__header = {
             'Content-type': 'application/json',
@@ -190,7 +190,7 @@ class Blockchain:
 
         print(f"WORKER NODE: Registered account: {self.__home_ip}", flush=True)
         print(f"WORKER NODE: Account address: {self.__acc_address}", flush=True)
-        print(f"{'*' * 50} BLOCKCHAIN INITIALIZATION: FINISHED {'*' * 50}", flush=True)
+        print(f"{'-' * 25} BLOCKCHAIN INITIALIZATION: FINISHED {'*' - 25}", flush=True)
 
         # FIXME: remove before pushing to prod
         #self.__testing()
@@ -306,6 +306,7 @@ class Blockchain:
         return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
 
     def push_opinion(self, ip_address: str, opinion: int):
+        print(f"{'*' * 25} REPORT LOCAL OPINION {'*' * 25}", flush=True)
         for _ in range(3):
             try:
                 unsigned_trx = self.__contract_obj.functions.rateNeighbor(ip_address, opinion).build_transaction(
@@ -328,6 +329,7 @@ class Blockchain:
         print(f"ERROR: push_opinion({ip_address}, {opinion}) could not be resolved", flush=True)
 
     def push_opinions(self, opinion_dict: dict):
+        print(f"{'*' * 25} REPORT LOCAL OPINION {'*' * 25}", flush=True)
         tuples = [(name, opinion) for name, opinion in opinion_dict.items()]
         for _ in range(3):
             try:
@@ -352,6 +354,7 @@ class Blockchain:
         print(f"ERROR: push_opinion({opinion_dict}) could not be resolved", flush=True)
 
     def get_reputation(self, ip_address: str) -> int:
+        print(f"{'*' * 25} REQUEST GLOBAL VIEW {'*' * 25}", flush=True)
         for _ in range(3):
             try:
                 reputation = self.__contract_obj.functions.getReputation(ip_address).call({
@@ -368,6 +371,7 @@ class Blockchain:
         return 1
 
     def get_reputations(self, ip_addresses: list) -> dict:
+        print(f"{'*' * 25} REQUEST GLOBAL VIEW {'*' * 25}", flush=True)
         for _ in range(3):
             try:
                 reputations = self.__contract_obj.functions.get_reputations(ip_addresses).call({
@@ -376,12 +380,12 @@ class Blockchain:
                 })
                 if reputations:
                     print(f"BLOCKCHAIN: Reputations: AVG = {reputations[0][4]}%, Stddev = {reputations[0][5]}", flush=True)
-                print(reputations)
+                # print(reputations)
                 results = dict()
                 for name, reputation, stddev_count, final_reputation, avg, stddev, centrality, difference, malicious in reputations:
                     if name:
                         results[name] = final_reputation
-                    print(f"BLOCKCHAIN: Reputation of {name} = {final_reputation}%, stddev_cnt < {stddev_count} centrality = {centrality}, difference = {difference}, malicious = {malicious}", flush=True)
+                    print(f"BLOCKCHAIN: Reputation of {name} = {final_reputation}%, raw_reputation = {reputation}%, stddev_cnt < {stddev_count+1}, centrality = {centrality}%, difference = {difference}, malicious = {malicious}", flush=True)
                 return results
 
             except Exception as e:
@@ -405,9 +409,9 @@ class Blockchain:
         raise RuntimeError(f"ERROR: get_raw_reputation({ip_address})")
 
     def __register_neighbors(self) -> str:
+        print(f"{'*' * 25} REGISTER LOCAL TOPOLOGY {'*' * 25}", flush=True)
         for _ in range(3):
             try:
-                print(f"start registering")
                 unsigned_trx = self.__contract_obj.functions.register_neighbors(self.__neighbors,
                                                                                 self.__home_ip).build_transaction(
                     {
@@ -451,4 +455,4 @@ class Blockchain:
 
             print(f"BLOCKCHAIN: iteration {iteration} finished after {round(time.time() - start, 2)}s", flush=True)
 
-        print("*" * 50, f"BLOCKCHAIN TESTING: FINISHED", "*" * 50, flush=True)
+        print("-" * 25, f"BLOCKCHAIN TESTING: FINISHED", "-" * 25, flush=True)
