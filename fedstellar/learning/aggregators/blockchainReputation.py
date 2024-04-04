@@ -25,6 +25,8 @@ from web3 import Web3
 from web3.middleware import construct_sign_and_send_raw_middleware
 from web3.middleware import geth_poa_middleware
 
+from tabulate import tabulate
+
 from fedstellar.learning.aggregators.aggregator import Aggregator
 from fedstellar.learning.aggregators.helper import cosine_metric, euclidean_metric, minkowski_metric, manhattan_metric, \
     pearson_correlation_metric, jaccard_metric
@@ -48,126 +50,132 @@ class BlockchainReputation(Aggregator):
 
     def aggregate(self, model_obj_collection):
 
-        print(f"{'-' * 25} BLOCKCHAIN AGGREGATION: START {'-' * 25}")
+        print_with_frame("BLOCKCHAIN AGGREGATION: START")
 
         if not len(model_obj_collection):
             logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
             return None
 
-        # current_models = dict()
-        # for subnodes, (submodel, _) in model_obj_collection.items():
-        #     sublist = subnodes.split()
-        #     for node in sublist:
-        #         current_models[node] = submodel
-
         local_model = self.__learner.get_parameters()
+        #local_weight = self.__learner.get_num_samples()[0]
 
-        current_models = {node: submodel for subnodes, (submodel, _) in model_obj_collection.items()
+        current_models = {node: submodel for subnodes, (submodel, weight) in model_obj_collection.items()
                           for node in subnodes.split() if node in self.__neighbors}
-        current_models[self.node_name] = local_model
+
+        test = dict()
+        for subnodes, (submodel, weight) in model_obj_collection.items():
+            for node in subnodes.split():
+                if node in self.__neighbors:
+                    if node in test.keys():
+                        test[node] += 1
+                    else:
+                        test[node] = 1
+        print(test)
+
+        current_models = {node: submodel for subnodes, (submodel, weight) in model_obj_collection.items()
+                          for node in subnodes.split() if node in self.__neighbors}
+
+        # current_models[self.node_name] = local_model
 
         final_model = {layer: torch.zeros_like(param) for layer, param in local_model.items()}
 
         neighbor_names = [name for name in current_models.keys() if name != self.node_name]
 
-        opinion_values = {name: self.__get_opinion(name, local_model, current_models[name]) for name in neighbor_names}
+        opinion_values = {name: self.__get_opinion(local_model, current_models[name]) for name in neighbor_names}
+
+        print(f"TEST OWN MODEL: local_opinion = {self.__get_opinion(local_model, local_model)}")
 
         self.__blockchain.push_opinions(opinion_values)
 
         reputation_values = self.__blockchain.get_reputations([name for name in current_models.keys()])
 
-        normalized_reputation_values = {name: round(reputation_values[name] / (((sum(reputation_values.values()) if sum(reputation_values.values()) > 0 else 1))), 3) for
+        normalized_reputation_values = {name: round(reputation_values[name] / (
+            ((sum(reputation_values.values()) if sum(reputation_values.values()) > 0 else 1))), 3) for
                                         name in reputation_values}
 
-        print(f"AGGREGATION: Reputation for contributions: {reputation_values}", flush=True)
-        print(f"AGGREGATION: Normalized reputation for aggregation: {normalized_reputation_values}", flush=True)
+        print(f"\n{'-' * 25} GLOBAL REPUTATION {'-' * 25}", flush=True)
+        print(
+            tabulate(
+                [[ip_address, reputation] for ip_address, reputation in reputation_values.items()],
+                headers=["Neighbor Node", "Global Reputation"],
+                tablefmt="grid"
+            )
+        )
+        print(f"\n{'-' * 25} NORMALIZED REPUTATION {'-' * 25}", flush=True)
+        print(
+            tabulate(
+                [[ip_address, reputation] for ip_address, reputation in normalized_reputation_values.items()],
+                headers=["Neighbor Node", "Normalized Reputation"],
+                tablefmt="grid"
+            )
+        )
+        # print(f"AGGREGATION: Reputation for contributions: {reputation_values}", flush=True)
+        # print(f"AGGREGATION: Normalized reputation for aggregation: {normalized_reputation_values}", flush=True)
 
         for name, model in current_models.items():
             for layer in final_model:
-                final_model[layer] += model[layer] * normalized_reputation_values[name]  # * n_samples
+                final_model[layer] += model[layer] * normalized_reputation_values[name]  # * weights[name]
 
-        print(f"{'*' * 50} BLOCKCHAIN AGGREGATION: FINISHED {'-' * 25}", flush=True)
+        # for layer in final_model:
+        #     final_model[layer] /= total_weights
+
+        print_with_frame("BLOCKCHAIN AGGREGATION: FINISHED")
         return final_model
 
-    def __get_opinion(self, neighbor_name, local_model, untrusted_model):
-        # local_opinion = self.cossim_loss_opinion(neighbor_name, local_model, untrusted_model)
-        # local_opinion = self.euclidean_opinion(neighbor_name, local_model, untrusted_model)
-        local_opinion = self.minkowski_opinion(neighbor_name, local_model, untrusted_model)  # 0.08 loss
-        # local_opinion = self.manhattan_opinion(neighbor_name, local_model, untrusted_model)
-        # local_opinion = self.pearson_correlation_opinion(neighbor_name, local_model, untrusted_model)
-        # local_opinion = self.jaccard_opinion(neighbor_name, local_model, untrusted_model)
-        # local_opinion = self.loss_opinion(neighbor_name, local_model, untrusted_model) 0.09 loss
-        return local_opinion
+    def __get_opinion(self, local_model, untrusted_model):
+        # local_opinion = self.cossim_loss_opinion(local_model, untrusted_model)
+        # local_opinion = self.euclidean_opinion(local_model, untrusted_model)
+        # local_opinion = self.minkowski_opinion(local_model, untrusted_model)  # 0.08 loss
+        # local_opinion = self.manhattan_opinion(local_model, untrusted_model)
+        # local_opinion = self.pearson_correlation_opinion(local_model, untrusted_model)
+        # local_opinion = self.jaccard_opinion(local_model, untrusted_model)
+        local_opinion = self.loss_opinion(local_model, untrusted_model) # 0.09 loss
+        return max(min(round(local_opinion), 100), 0)
 
-    def cossim_loss_opinion(self, neighbor_name, local_model, untrusted_model):
+    def cossim_loss_opinion(self, local_model, untrusted_model):
         cossim = cosine_metric(local_model, untrusted_model, similarity=True)
         avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
-        local_opinion = max(min(round(cossim * (3 - avg_loss) * 100), 100), 1)
-        print(
-            f"AGGREGATION: neighbor: {neighbor_name}, cossim: {round(cossim, 2)}, avg_loss: {round(avg_loss, 2)}, 1-avg_loss: {round(1 - avg_loss, 2)} trust: {local_opinion}%",
-            flush=True
-        )
-        return local_opinion
+        return cossim * max(min((1 - avg_loss) * 100, 100), 0)
 
-    def loss_opinion(self, neighbor_name, local_model, untrusted_model):
+    def loss_opinion(self, local_model, untrusted_model):
         avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
-        local_opinion = max(min(round((1 - avg_loss) * 100), 100), 1)
-        print(
-            f"AGGREGATION: neighbor: {neighbor_name}, avg_loss: {round(avg_loss, 2)}, 1-avg_loss: {round(1 - avg_loss, 2)} trust: {local_opinion}%",
-            flush=True
-        )
-        return local_opinion
+        return max(min(round((1 - avg_loss) * 100), 100), 0)
 
-    def euclidean_opinion(self, neighbor_name, local_model, untrusted_model):
+    def euclidean_opinion(self, local_model, untrusted_model):
         metric = euclidean_metric(local_model, untrusted_model)
-        local_opinion = max(min(int(metric * 100), 100), 1)
-        print(
-            f"AGGREGATION: neighbor: {neighbor_name}, euclidean: {round(metric, 2)}, trust: {local_opinion}%",
-            flush=True
-        )
-        return local_opinion
+        return max(min(int(metric * 100), 100), 0)
 
-    def minkowski_opinion(self, neighbor_name, local_model, untrusted_model):
+    def minkowski_opinion(self, local_model, untrusted_model):
         metric = minkowski_metric(local_model, untrusted_model, p=2)
-        local_opinion = max(min(round((10 - metric) * 10), 100), 1)
-        print(
-            f"AGGREGATION: neighbor: {neighbor_name}, minkowski: {round(metric, 2)}, trust: {local_opinion}%",
-            flush=True
-        )
-        return local_opinion
+        return max(min(round((10 - metric) * 10), 100), 0)
 
-    def manhattan_opinion(self, neighbor_name, local_model, untrusted_model):
+    def manhattan_opinion(self, local_model, untrusted_model):
         metric = manhattan_metric(local_model, untrusted_model)
-        local_opinion = max(min(int(metric * 100), 100), 1)
-        print(
-            f"AGGREGATION: neighbor: {neighbor_name}, manhattan: {round(metric, 2)}, trust: {local_opinion}%",
-            flush=True
-        )
-        return local_opinion
+        return max(min(int(metric * 100), 100), 0)
 
-    def pearson_correlation_opinion(self, neighbor_name, local_model, untrusted_model):
+    def pearson_correlation_opinion(self, local_model, untrusted_model):
         metric = pearson_correlation_metric(local_model, untrusted_model)
-        local_opinion = max(min(int(metric * 100), 100), 1)
-        print(
-            f"AGGREGATION: neighbor: {neighbor_name}, pearson: {round(metric, 2)}, trust: {local_opinion}%",
-            flush=True
-        )
-        return local_opinion
+        return max(min(int(metric * 100), 100), 0)
 
-    def jaccard_opinion(self, neighbor_name, local_model, untrusted_model):
+    def jaccard_opinion(self, local_model, untrusted_model):
         metric = jaccard_metric(local_model, untrusted_model)
-        local_opinion = max(min(round(metric * 100), 100), 1)
-        print(
-            f"AGGREGATION: neighbor: {neighbor_name}, jaccard: {round(metric, 2)}, trust: {local_opinion}%",
-            flush=True
-        )
-        return local_opinion
+        return max(min(round(metric * 100), 100), 0)
+
+
+def print_with_frame(message):
+    message_length = len(message)
+    top_border = f"{' ' * 20}+{'-' * (message_length + 2)}+"
+    middle_border = f"{'*' * 20}| {message} |{'*' * 20}"
+    bottom_border = f"{' ' * 20}+{'-' * (message_length + 2)}+"
+    print(top_border, flush=True)
+    print(middle_border, flush=True)
+    print(bottom_border, flush=True)
 
 
 class Blockchain:
 
     def __init__(self, neighbors, home_address):
-        print(f"{'-' * 25} BLOCKCHAIN INITIALIZATION: START {'-' * 25}", flush=True)
+        print_with_frame("BLOCKCHAIN INITIALIZATION: START")
 
         self.__header = {
             'Content-type': 'application/json',
@@ -181,19 +189,15 @@ class Blockchain:
         self.__oracle_url = "http://172.25.0.105:8081"
         self.__balance = float()  # DDos protection?
 
-        self.__wait_for_blockchain()
         self.__acc = self.__create_account()
+        self.__wait_for_blockchain()
+        self.__request_funds_from_oracle()
         self.__web3 = self.__initialize_geth()
         self.__contract_obj = self.__get_contract_from_oracle()
         self.__register_neighbors()
         # self.__verify_centrality()
 
-        print(f"WORKER NODE: Registered account: {self.__home_ip}", flush=True)
-        print(f"WORKER NODE: Account address: {self.__acc_address}", flush=True)
-        print(f"{'-' * 25} BLOCKCHAIN INITIALIZATION: FINISHED {'*' - 25}", flush=True)
-
-        # FIXME: remove before pushing to prod
-        #self.__testing()
+        print_with_frame("BLOCKCHAIN INITIALIZATION: FINISHED")
 
     def __initialize_geth(self):
         web3 = Web3(Web3.HTTPProvider(self.__rpc_url, request_kwargs={'timeout': 30}))
@@ -203,6 +207,7 @@ class Blockchain:
         return web3
 
     def __wait_for_blockchain(self):
+        print(f"{'-' * 25} CONNECT TO ORACLE {'-' * 25}", flush=True)
         for _ in range(20):
             try:
                 r = requests.get(
@@ -259,10 +264,16 @@ class Blockchain:
         raise RuntimeError(f"ERROR: verify_centrality() could not be resolved")
 
     def __create_account(self):
+        print(f"{'-' * 25} REGISTER WORKING NODE {'-' * 25}", flush=True)
         acc = Account.create()
         web3 = Web3()
         self.__private_key = web3.to_hex(acc.key)
         self.__acc_address = web3.to_checksum_address(acc.address)
+        print(f"WORKER NODE: Registered account: {self.__home_ip}", flush=True)
+        print(f"WORKER NODE: Account address: {self.__acc_address}", flush=True)
+        return acc
+
+    def __request_funds_from_oracle(self) -> None:
         for _ in range(3):
             try:
                 r = requests.post(
@@ -278,8 +289,7 @@ class Blockchain:
                     timeout=10
                 )
                 if r.status_code == 200:
-                    print(f"ORACLE: Received 500 ETH", flush=True)
-                    return acc
+                    return print(f"ORACLE: Received 500 ETH", flush=True)
             except Exception as e:
                 print(f"EXCEPTION: create_account() => {e}", flush=True)
                 time.sleep(2)
@@ -305,31 +315,8 @@ class Blockchain:
         sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
         return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
 
-    def push_opinion(self, ip_address: str, opinion: int):
-        print(f"{'*' * 25} REPORT LOCAL OPINION {'*' * 25}", flush=True)
-        for _ in range(3):
-            try:
-                unsigned_trx = self.__contract_obj.functions.rateNeighbor(ip_address, opinion).build_transaction(
-                    {
-                        "chainId": self.__web3.eth.chain_id,
-                        "from": self.__acc_address,
-                        "nonce": self.__web3.eth.get_transaction_count(
-                            self.__web3.to_checksum_address(self.__acc_address)
-                        ),
-                        "gasPrice": self.__web3.to_wei("1", "gwei")
-                    }
-                )
-                conf = self.__sign_and_deploy(unsigned_trx)
-                json_response = self.__web3.to_json(conf)
-                print(f"BLOCKCHAIN: Rating {ip_address} with {opinion}%", flush=True)
-                return json_response
-            except Exception as e:
-                print(f"EXCEPTION: push_opinion({ip_address}, {opinion}) => {e}", flush=True)
-                time.sleep(2)
-        print(f"ERROR: push_opinion({ip_address}, {opinion}) could not be resolved", flush=True)
-
     def push_opinions(self, opinion_dict: dict):
-        print(f"{'*' * 25} REPORT LOCAL OPINION {'*' * 25}", flush=True)
+        print(f"\n{'-' * 25} REPORT LOCAL OPINION {'-' * 25}", flush=True)
         tuples = [(name, opinion) for name, opinion in opinion_dict.items()]
         for _ in range(3):
             try:
@@ -345,47 +332,56 @@ class Blockchain:
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_response = self.__web3.to_json(conf)
-                for ip_address, opinion in opinion_dict.items():
-                    print(f"BLOCKCHAIN: Rating {ip_address} with {opinion}%", flush=True)
+                # for ip_address, opinion in opinion_dict.items():
+                #     print(f"BLOCKCHAIN: Rating {ip_address} with {opinion}%", flush=True)
+
+                print(
+                    tabulate(
+                        [[ip_address, opinion] for ip_address, opinion in opinion_dict.items()],
+                        headers=["Neighbor Node", "Local Opinion"],
+                        tablefmt="grid"
+                    )
+                )
+
                 return json_response
             except Exception as e:
                 print(f"EXCEPTION: push_opinions({opinion_dict}) => {e}", flush=True)
                 time.sleep(2)
         print(f"ERROR: push_opinion({opinion_dict}) could not be resolved", flush=True)
 
-    def get_reputation(self, ip_address: str) -> int:
-        print(f"{'*' * 25} REQUEST GLOBAL VIEW {'*' * 25}", flush=True)
-        for _ in range(3):
-            try:
-                reputation = self.__contract_obj.functions.getReputation(ip_address).call({
-                    "from": self.__acc_address,
-                    "gasPrice": self.__web3.to_wei("1", "gwei")
-                })
-                reputation = reputation if reputation else 1
-                print(f"BLOCKCHAIN: Reputation of {ip_address} = {reputation}%", flush=True)
-                return reputation
-            except Exception as e:
-                print(f"EXCEPTION: get_reputation({ip_address}) => {e}", flush=True)
-                time.sleep(2)
-        print(f"ERROR: get_reputation({ip_address}) could not be resolved", flush=True)
-        return 1
-
     def get_reputations(self, ip_addresses: list) -> dict:
-        print(f"{'*' * 25} REQUEST GLOBAL VIEW {'*' * 25}", flush=True)
+        print(f"\n{'-' * 25} REQUEST GLOBAL VIEW {'-' * 25}", flush=True)
         for _ in range(3):
             try:
                 reputations = self.__contract_obj.functions.get_reputations(ip_addresses).call({
                     "from": self.__acc_address,
                     "gasPrice": self.__web3.to_wei("1", "gwei")
                 })
-                if reputations:
-                    print(f"BLOCKCHAIN: Reputations: AVG = {reputations[0][4]}%, Stddev = {reputations[0][5]}", flush=True)
+                # if reputations:
+                #     print(f"BLOCKCHAIN: Reputations: AVG = {reputations[0][4]}%, Stddev = {reputations[0][5]}",
+                #           flush=True)
                 # print(reputations)
                 results = dict()
-                for name, reputation, stddev_count, final_reputation, avg, stddev, centrality, difference, malicious in reputations:
+                for name, reputation, stddev_count, final_reputation, avg, stddev, centrality, difference, avg_difference, idx, stddev_opinions in reputations:
                     if name:
                         results[name] = final_reputation
-                    print(f"BLOCKCHAIN: Reputation of {name} = {final_reputation}%, raw_reputation = {reputation}%, stddev_cnt < {stddev_count+1}, centrality = {centrality}%, difference = {difference}, malicious = {malicious}", flush=True)
+                    # print(
+                    #     f"BLOCKCHAIN: Reputation of {name} = {final_reputation}%, raw_reputation = {reputation}%, stddev_cnt < {stddev_count + 1}, centrality = {centrality}%, difference = {difference}, avg_difference = {avg_difference}, idx = {idx}",
+                    #     flush=True)
+
+                print(
+                    tabulate(
+                        [[name, reputation, stddev_count, final_reputation, avg, stddev, centrality, difference,
+                          avg_difference, idx, stddev_opinions] for
+                         name, reputation, stddev_count, final_reputation, avg, stddev, centrality, difference, avg_difference, idx, stddev_opinions
+                         in reputations],
+                        headers=["name", "reputation", "stddev_count", "final_reputation", "avg", "stddev",
+                                 "centrality", "difference", "avg_difference", "idx", "stddev_opinions"],
+                        tablefmt="grid",
+                        maxcolwidths=[None, 8]
+                    )
+                )
+
                 return results
 
             except Exception as e:
@@ -394,22 +390,8 @@ class Blockchain:
         print(f"ERROR: get_reputations({ip_addresses}) could not be resolved", flush=True)
         return dict()
 
-    def get_raw_reputation(self, ip_address: str) -> list:
-        for _ in range(3):
-            try:
-                numbers = self.__contract_obj.functions.getLastBasicReputation(ip_address).call({
-                    "from": self.__acc_address,
-                    "gasPrice": self.__web3.to_wei("1", "gwei")
-                })
-                print(f"BLOCKCHAIN: Raw reputation of {ip_address} = {numbers}", flush=True)
-                return numbers
-            except Exception as e:
-                print(f"EXCEPTION: get_raw_reputation({ip_address}) => {e}", flush=True)
-                time.sleep(2)
-        raise RuntimeError(f"ERROR: get_raw_reputation({ip_address})")
-
     def __register_neighbors(self) -> str:
-        print(f"{'*' * 25} REGISTER LOCAL TOPOLOGY {'*' * 25}", flush=True)
+        print(f"{'-' * 25} REGISTER LOCAL TOPOLOGY {'-' * 25}", flush=True)
         for _ in range(3):
             try:
                 unsigned_trx = self.__contract_obj.functions.register_neighbors(self.__neighbors,
@@ -425,6 +407,7 @@ class Blockchain:
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_reponse = self.__web3.to_json(conf)
+                print(json_reponse, flush=True)
                 confirmation = self.__contract_obj.functions.confirm_registration().call({
                     "from": self.__acc_address,
                     "gasPrice": self.__web3.to_wei("1", "gwei")
@@ -440,19 +423,3 @@ class Blockchain:
                     flush=True)
                 time.sleep(2)
         raise RuntimeError(f"ERROR: _register_neighbors({self.__neighbors}, {self.__home_ip})")
-
-    def __testing(self):
-        self.__register_neighbors()
-        for opinion, iteration in zip([22, 45, 98, 7, 68, 14, 79, 54, 33, 83], range(10)):
-            print("*" * 50, f"BLOCKCHAIN TESTING: iteration {iteration}", "*" * 50, flush=True)
-            start = time.time()
-            ip = f"192.168.0.{iteration % 5}"
-
-            self.push_opinion(ip, opinion)
-            self.__request_balance()
-            self.get_reputation(ip)
-            # self.get_raw_reputation(ip)
-
-            print(f"BLOCKCHAIN: iteration {iteration} finished after {round(time.time() - start, 2)}s", flush=True)
-
-        print("-" * 25, f"BLOCKCHAIN TESTING: FINISHED", "-" * 25, flush=True)

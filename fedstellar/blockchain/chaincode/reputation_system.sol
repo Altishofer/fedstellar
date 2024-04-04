@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.22;
+// EVM-Version => PARIS, or else it will not work properly!
 
 contract ReputationSystem {
 
@@ -8,6 +9,7 @@ contract ReputationSystem {
     struct Edge {
         bool neighbor;
         uint256[] opinions;
+        uint256 stddev_to_neighbor;
     }
 
     struct Node {
@@ -33,7 +35,9 @@ contract ReputationSystem {
         uint stddev;
         uint centrality;
         uint difference;
-        bool malicious;
+        uint avg_difference;
+        uint index;
+        uint stddev_opinions;
     }
 
     // Events for debugging
@@ -124,7 +128,7 @@ contract ReputationSystem {
         for (uint256 y=0; y<adj_matrix.length; y++){
 
             while (adj_matrix[y].length < nodes.length){
-                adj_matrix[y].push(Edge(false, new uint256[](0)));
+                adj_matrix[y].push(Edge(false, new uint256[](0), 0));
             }
         }
 
@@ -182,7 +186,9 @@ contract ReputationSystem {
             Edge storage edge = adj_matrix[index_sender][index_target];
 
             //edge.opinions.push(opinion);
-            edge.opinions.push(neighbor.value);
+            if (neighbor.value > 0){
+                edge.opinions.push(neighbor.value);
+            }
         }
 
         return true;
@@ -196,14 +202,13 @@ contract ReputationSystem {
         return (adj_matrix[node_a][node_b].neighbor && adj_matrix[node_b][node_a].neighbor) || node_a == node_b;
     }
 
+    function getHistory(uint a, uint b) public view returns (uint[] memory){
+        return adj_matrix[a][b].opinions;
+    }
+
     function compute_difference(uint256 a, uint256 b) public returns (uint){
 
         require(valid_neighbors(a, b), "Nodes are not confirmed neighbors (compute_difference)");
-        require(a < nodes.length, "compute_difference, a < nodes.length" );
-        require(a >= 0, "compute_difference, a >= 0" );
-        require(b < nodes.length, "compute_difference, a < nodes.length" );
-        require(b >= 0, "compute_difference, b >= 0" );
-
 
         uint256[] memory opinions_a = adj_matrix[a][b].opinions;
         uint256[] memory opinions_b = adj_matrix[b][a].opinions;
@@ -213,7 +218,7 @@ contract ReputationSystem {
 
         uint256 differences = abs(int256(opinions_a.length) - int256(opinions_b.length));
 
-        while (a < opinions_a.length && b < opinions_b.length){
+        while (p_a < opinions_a.length && p_b < opinions_b.length){
 
             if (opinions_a[p_a] == opinions_b[p_b]){
                 p_a++;
@@ -236,7 +241,54 @@ contract ReputationSystem {
         return differences;
     }
 
-    function malicious(uint a) public returns (bool){
+
+    function stddev_opinions(uint256 a, uint256 b) public returns (uint){
+
+        require(valid_neighbors(a, b), "Nodes are not confirmed neighbors (compute_difference)");
+
+        uint256[] memory opinions_a = adj_matrix[a][b].opinions;
+        uint256[] memory opinions_b = adj_matrix[b][a].opinions;
+
+        uint256 min_len = opinions_a.length > opinions_b.length ? opinions_b.length : opinions_a.length;
+
+        if (min_len <= 0){
+            return 0;
+        }
+
+        uint256[] memory differences = new uint256[](min_len);
+        uint256 sum_differences = 0;
+
+        for (uint256 i=0; i < differences.length; i++){
+            differences[i] = abs(int256(opinions_a[i]) - int256(opinions_b[i])) * MULTIPLIER;
+            sum_differences += differences[i];
+        }
+
+
+        require(differences.length > 0, "differences.length == 0");
+
+        uint256 avg_differences = sum_differences / differences.length;
+
+        uint256 variance = 0;
+        for (uint i=0; i<differences.length; i++){
+            uint256 diff = abs(int256(avg_differences) - int256(differences[i]));
+            variance += diff * diff;
+        }
+
+        variance /= differences.length;
+
+        if (variance <= 0){
+            return 0;
+        }
+        require(variance > 0, "variance == 0");
+        uint stddev = sqrt(variance) / MULTIPLIER;
+
+        adj_matrix[a][b].stddev_to_neighbor = stddev;
+        adj_matrix[b][a].stddev_to_neighbor = stddev;
+
+        return stddev;
+    }
+
+    function malicious(uint256 a) public returns (uint256){
 
         uint256[] memory differences = new uint256[](nodes.length);
         uint256 neighbors_cnt;
@@ -254,7 +306,7 @@ contract ReputationSystem {
             }
         }
 
-        return neighbors_flagged > 0 ? neighbors_cnt / neighbors_flagged < 2 : false;
+        return neighbors_flagged > 0 ? neighbors_cnt / neighbors_flagged : 0;
     }
 
     function get_reputations(string[] memory neighbors) public returns (DebugDict[] memory){
@@ -283,7 +335,7 @@ contract ReputationSystem {
                 uint256[] memory participant_history = adj_matrix[i][index_target].opinions;
                 uint256 hist_len = participant_history.length;
 
-                if (hist_len == 0) {continue;}
+                if (hist_len <= 0) {continue;}
 
                 uint256 sum;
                 uint256 hist_included;
@@ -297,6 +349,7 @@ contract ReputationSystem {
                 }
                 sum *= MULTIPLIER;
 
+                require(uint256(hist_included) > 0, "uint256(hist_included) <= 0");
                 opinions[i] = sum / uint256(hist_included);
             }
 
@@ -316,10 +369,10 @@ contract ReputationSystem {
                 final_opinion = uint256(sum_opinions / n_opinions);
                 require(final_opinion > 0, "final opinion is zero");
             } else {
-                final_opinion = 25 * MULTIPLIER;
+                final_opinion = 10 * MULTIPLIER;
             }
 
-            reputations[j] = DebugDict(name_target, final_opinion, 0, 0, 0, 0, 0, 0, false);
+            reputations[j] = DebugDict(name_target, final_opinion, 0, 0, 0, 0, 0, 0, 0, index_target, 0);
             sum_reputations += final_opinion;
         }
 
@@ -332,6 +385,7 @@ contract ReputationSystem {
             return reputations;
         }
 
+        require(reputations.length > 1, "reputations.length <= 1");
         uint256 avg = sum_reputations / reputations.length;
         uint256 stddev = 0;
 
@@ -363,13 +417,13 @@ contract ReputationSystem {
             if (
                     stddev > 0 &&
                     reputations[i].reputation < avg &&
-                    cntt >= 2
+                    cntt >= 1
                 ){
 
-                uint256 cntt_red = (abs(int256(avg) - int256(reputations[i].reputation)) / stddev ) -1;
-                require(cntt_red >= 1, "stddev <= 1");
+                uint256 cntt_red = (abs(int256(avg) - int256(reputations[i].reputation)) / stddev) +1;
+                require(cntt_red >= 2, "stddev <= 2");
 
-                uint f = cntt_red * (MULTIPLIER + nodes[names[reputations[i].key].index].centrality);
+                uint f = cntt_red * (MULTIPLIER + nodes[reputations[i].index].centrality);
                 require(f > 0, "f <= 0");
                 emit Debug("f", f);
 
@@ -379,13 +433,18 @@ contract ReputationSystem {
                 reputations[i].final_reputation = reputations[i].reputation / MULTIPLIER;
             }
 
-            reputations[i].reputation /= MULTIPLIER;
-            reputations[i].stddev_count = cntt;
-            reputations[i].stddev = stddev / MULTIPLIER;
-            reputations[i].avg = avg / MULTIPLIER;
-            reputations[i].centrality = nodes[names[reputations[i].key].index].centrality / MULTIPLIER;
-            reputations[i].difference = compute_difference(index_sender, names[reputations[i].key].index);
-            // reputations[i].malicious = malicious(names[reputations[i].key].index);
+            DebugDict memory target = reputations[i];
+
+            target.reputation /= MULTIPLIER;
+            target.stddev_count = cntt;
+            target.stddev = stddev / MULTIPLIER;
+            target.avg = avg / MULTIPLIER;
+            target.centrality = nodes[target.index].centrality / (MULTIPLIER / 100);
+            target.difference = compute_difference(index_sender, target.index);
+            target.avg_difference = malicious(target.index);
+            // target.stddev_opinions = stddev_opinions(index_sender, target.index);
+
+            reputations[i] = target;
 
             // if (compute_difference(index_sender, index_target) > 1 || malicious(index_target)){
             //     final_opinion = 0;
@@ -398,7 +457,7 @@ contract ReputationSystem {
             emit Debug("reputation", reputations[i].reputation);
             emit Debug("centrality", reputations[i].centrality);
             emit Debug("difference", reputations[i].difference);
-            emit Debug("malicious", reputations[i].malicious);
+            emit Debug("malicious", reputations[i].avg_difference);
         }
 
         return reputations;

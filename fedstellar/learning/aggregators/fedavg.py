@@ -50,6 +50,7 @@ class FedAvg(Aggregator):
 
         # Total Samples
         total_samples = sum(w for _, w in models)
+        print(f"{'*'*50} samples = {[w for _, w in models]}")
 
         # Create a Zero Model
         accum = {layer: torch.zeros_like(param) for layer, param in models[-1][0].items()}
@@ -57,6 +58,7 @@ class FedAvg(Aggregator):
         # Add weighted models
         logging.info(f"[FedAvg.aggregate] Aggregating models: num={len(models)}")
         for model, weight in models:
+            print(f"{'*' * 50} weight = {weight}")
             for layer in accum:
                 accum[layer] += model[layer] * weight
 
