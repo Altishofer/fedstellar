@@ -62,18 +62,9 @@ class BlockchainReputation(Aggregator):
         current_models = {node: submodel for subnodes, (submodel, weight) in model_obj_collection.items()
                           for node in subnodes.split() if node in self.__neighbors}
 
-        test = dict()
-        for subnodes, (submodel, weight) in model_obj_collection.items():
-            for node in subnodes.split():
-                if node in self.__neighbors:
-                    if node in test.keys():
-                        test[node] += 1
-                    else:
-                        test[node] = 1
-        print(test)
-
-        current_models = {node: submodel for subnodes, (submodel, weight) in model_obj_collection.items()
-                          for node in subnodes.split() if node in self.__neighbors}
+        if not len(current_models):
+            logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
+            return None
 
         # current_models[self.node_name] = local_model
 
@@ -125,11 +116,12 @@ class BlockchainReputation(Aggregator):
     def __get_opinion(self, local_model, untrusted_model):
         # local_opinion = self.cossim_loss_opinion(local_model, untrusted_model)
         # local_opinion = self.euclidean_opinion(local_model, untrusted_model)
-        # local_opinion = self.minkowski_opinion(local_model, untrusted_model)  # 0.08 loss
+        local_opinion = self.minkowski_opinion(local_model, untrusted_model)
         # local_opinion = self.manhattan_opinion(local_model, untrusted_model)
         # local_opinion = self.pearson_correlation_opinion(local_model, untrusted_model)
         # local_opinion = self.jaccard_opinion(local_model, untrusted_model)
-        local_opinion = self.loss_opinion(local_model, untrusted_model) # 0.09 loss
+        # local_opinion = self.loss_opinion(local_model, untrusted_model)
+        # local_opinion = self.loss_opinion_V2(local_model, untrusted_model)
         return max(min(round(local_opinion), 100), 0)
 
     def cossim_loss_opinion(self, local_model, untrusted_model):
@@ -139,6 +131,10 @@ class BlockchainReputation(Aggregator):
 
     def loss_opinion(self, local_model, untrusted_model):
         avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
+        return max(min(round((1 - avg_loss) * 100), 100), 0)
+
+    def loss_opinion_V2(self, local_model, untrusted_model):
+        avg_loss = self.__learner.validate_neighbour_model_V2(untrusted_model)
         return max(min(round((1 - avg_loss) * 100), 100), 0)
 
     def euclidean_opinion(self, local_model, untrusted_model):
@@ -190,11 +186,13 @@ class Blockchain:
         self.__balance = float()  # DDos protection?
 
         self.__acc = self.__create_account()
+        self.__web3 = self.__initialize_geth()
         self.__wait_for_blockchain()
         self.__request_funds_from_oracle()
-        self.__web3 = self.__initialize_geth()
+        self.__verify_balance()
         self.__contract_obj = self.__get_contract_from_oracle()
         self.__register_neighbors()
+        self.__verify_registration()
         # self.__verify_centrality()
 
         print_with_frame("BLOCKCHAIN INITIALIZATION: FINISHED")
@@ -241,7 +239,7 @@ class Blockchain:
                     )
             except Exception as e:
                 print(f"EXCEPTION: get_contract_from_oracle() => {e}", flush=True)
-                time.sleep(2)
+                time.sleep(4)
         raise RuntimeError(f"ERROR: get_contract_from_oracle() could not be resolved")
 
     def __verify_centrality(self):
@@ -260,7 +258,7 @@ class Blockchain:
                     return json_response.get('valid')
             except Exception as e:
                 print(f"EXCEPTION: verify_centrality() => {e}", flush=True)
-                time.sleep(2)
+                time.sleep(4)
         raise RuntimeError(f"ERROR: verify_centrality() could not be resolved")
 
     def __create_account(self):
@@ -292,23 +290,23 @@ class Blockchain:
                     return print(f"ORACLE: Received 500 ETH", flush=True)
             except Exception as e:
                 print(f"EXCEPTION: create_account() => {e}", flush=True)
-                time.sleep(2)
+                time.sleep(4)
         raise RuntimeError(f"ERROR: create_account() could not be resolved")
 
-    def __request_balance(self):
+    def __verify_balance(self) -> None:
         for _ in range(3):
             try:
                 balance = self.__web3.eth.get_balance(self.__acc_address, "latest")
                 balance_eth = self.__web3.from_wei(balance, "ether")
                 print(f"BLOCKCHAIN: Current balance of node = {balance_eth} ETH", flush=True)
-                return {
-                    "address": self.__acc_address,
-                    "balance_eth": self.__web3.from_wei(balance, "ether")
-                }
+                if balance_eth <= 0:
+                    self.__request_funds_from_oracle()
+                    raise Exception("Funds could not be verified")
+                return print(f"BLOCKCHAIN: Successfully verified balance of {balance_eth} ETH", flush=True)
             except Exception as e:
-                print(f"EXCEPTION: request_balance() => {e}", flush=True)
-                time.sleep(2)
-        raise RuntimeError(f"ERROR: request_balance() could not be resolved")
+                print(f"EXCEPTION: verify_balance() => {e}", flush=True)
+                time.sleep(4)
+        raise RuntimeError(f"ERROR: verify_balance() could not be resolved")
 
     def __sign_and_deploy(self, trx_hash):
         s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
@@ -325,7 +323,8 @@ class Blockchain:
                         "chainId": self.__web3.eth.chain_id,
                         "from": self.__acc_address,
                         "nonce": self.__web3.eth.get_transaction_count(
-                            self.__web3.to_checksum_address(self.__acc_address)
+                            self.__web3.to_checksum_address(self.__acc_address),
+                            'pending'
                         ),
                         "gasPrice": self.__web3.to_wei("1", "gwei")
                     }
@@ -334,7 +333,6 @@ class Blockchain:
                 json_response = self.__web3.to_json(conf)
                 # for ip_address, opinion in opinion_dict.items():
                 #     print(f"BLOCKCHAIN: Rating {ip_address} with {opinion}%", flush=True)
-
                 print(
                     tabulate(
                         [[ip_address, opinion] for ip_address, opinion in opinion_dict.items()],
@@ -346,8 +344,8 @@ class Blockchain:
                 return json_response
             except Exception as e:
                 print(f"EXCEPTION: push_opinions({opinion_dict}) => {e}", flush=True)
-                time.sleep(2)
-        print(f"ERROR: push_opinion({opinion_dict}) could not be resolved", flush=True)
+                time.sleep(4)
+        raise RuntimeError(f"ERROR: push_opinion({opinion_dict}) could not be resolved")
 
     def get_reputations(self, ip_addresses: list) -> dict:
         print(f"\n{'-' * 25} REQUEST GLOBAL VIEW {'-' * 25}", flush=True)
@@ -386,9 +384,8 @@ class Blockchain:
 
             except Exception as e:
                 print(f"EXCEPTION: get_reputations({ip_addresses}) => {e}", flush=True)
-                time.sleep(2)
-        print(f"ERROR: get_reputations({ip_addresses}) could not be resolved", flush=True)
-        return dict()
+                time.sleep(4)
+        raise RuntimeError(f"ERROR: get_reputations({ip_addresses}) could not be resolved")
 
     def __register_neighbors(self) -> str:
         print(f"{'-' * 25} REGISTER LOCAL TOPOLOGY {'-' * 25}", flush=True)
@@ -400,20 +397,14 @@ class Blockchain:
                         "chainId": self.__web3.eth.chain_id,
                         "from": self.__acc_address,
                         "nonce": self.__web3.eth.get_transaction_count(
-                            self.__web3.to_checksum_address(self.__acc_address)
+                            self.__web3.to_checksum_address(self.__acc_address),
+                            'pending'
                         ),
                         "gasPrice": self.__web3.to_wei("1", "gwei")
                     }
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
                 json_reponse = self.__web3.to_json(conf)
-                print(json_reponse, flush=True)
-                confirmation = self.__contract_obj.functions.confirm_registration().call({
-                    "from": self.__acc_address,
-                    "gasPrice": self.__web3.to_wei("1", "gwei")
-                })
-                if not confirmation:
-                    raise Exception("Registration could not be confirmed")
                 for neighbor in self.__neighbors:
                     print(f"BLOCKCHAIN: Registered neighbor: {neighbor}", flush=True)
                 return json_reponse
@@ -421,5 +412,26 @@ class Blockchain:
                 print(
                     f"EXCEPTION: _register_neighbors({self.__neighbors}, {self.__home_ip}) => {e}",
                     flush=True)
-                time.sleep(2)
+                if self.__verify_balance() == 0:
+                    print(f"EXCEPTION: Request funds from Oracle", flush=True)
+                    self.__request_funds_from_oracle()
+                time.sleep(4)
         raise RuntimeError(f"ERROR: _register_neighbors({self.__neighbors}, {self.__home_ip})")
+
+    def __verify_registration(self) -> None:
+        for _ in range(3):
+            try:
+                confirmation = self.__contract_obj.functions.confirm_registration().call({
+                    "from": self.__acc_address,
+                    "gasPrice": self.__web3.to_wei("1", "gwei")
+                })
+                if not confirmation:
+                    self.__register_neighbors()
+                    raise Exception("Registration could not be confirmed")
+                return print(f"BLOCKCHAIN: Verified registration", flush=True)
+            except Exception as e:
+                print(
+                    f"EXCEPTION: _verify_registration() => {e}",
+                    flush=True)
+                time.sleep(4)
+        raise RuntimeError(f"ERROR: _verify_registration()")

@@ -256,3 +256,35 @@ class LightningLearner(NodeLearner):
         avg_loss = running_loss / len(bootstrap_dataloader)
         logging.info("[Learner.validate_neighbour]: Computed neighbor loss over {} data samples".format(num_samples))
         return avg_loss
+
+    def validate_neighbour_model_V2(self, neighbour_model_param):
+        """
+        Validates a neighbour model using a bootstrap dataloader.
+
+        Args:
+            neighbour_model_param (dict): The state_dict of the neighbour model.
+
+        Returns:
+            float: The average loss computed over the bootstrap dataloader.
+        """
+        running_loss = 0.0
+        total_samples = 0
+        neighbour_model = copy.deepcopy(self.model)
+        neighbour_model.load_state_dict(neighbour_model_param)
+
+        # Set the model to evaluation mode
+        neighbour_model.eval()
+
+        # Create a DataLoader for the bootstrap dataset
+        bootstrap_dataloader = self.data.bootstrap_dataloader()
+
+        with torch.no_grad():
+            for inputs, labels in bootstrap_dataloader:
+                outputs = neighbour_model(inputs)
+                loss = F.cross_entropy(outputs, labels, reduction='sum')
+                running_loss += loss.item()
+                total_samples += labels.size(0)
+
+        avg_loss = running_loss / total_samples
+        logging.info("[Learner.validate_neighbour]: Computed neighbor loss over {} data samples".format(total_samples))
+        return avg_loss
