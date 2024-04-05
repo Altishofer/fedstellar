@@ -18,6 +18,7 @@
 import logging
 import os
 import pickle
+import time
 from collections import OrderedDict
 import random
 import traceback
@@ -258,33 +259,69 @@ class LightningLearner(NodeLearner):
         return avg_loss
 
     def validate_neighbour_model_V2(self, neighbour_model_param):
-        """
-        Validates a neighbour model using a bootstrap dataloader.
-
-        Args:
-            neighbour_model_param (dict): The state_dict of the neighbour model.
-
-        Returns:
-            float: The average loss computed over the bootstrap dataloader.
-        """
+        num_samples = 0
         running_loss = 0.0
-        total_samples = 0
-        neighbour_model = copy.deepcopy(self.model)
+        neighbour_model = copy.deepcopy(neighbour_model_param)
         neighbour_model.load_state_dict(neighbour_model_param)
-
-        # Set the model to evaluation mode
         neighbour_model.eval()
 
-        # Create a DataLoader for the bootstrap dataset
-        bootstrap_dataloader = self.data.bootstrap_dataloader()
+        # bootstrap_dataloader = self.data.train_dataloader()
+        # bootstrap_dataloader = self.data.val_dataloader()
+        bootstrap_dataloader = self.data.test_dataloader()
 
         with torch.no_grad():
             for inputs, labels in bootstrap_dataloader:
                 outputs = neighbour_model(inputs)
-                loss = F.cross_entropy(outputs, labels, reduction='sum')
-                running_loss += loss.item()
-                total_samples += labels.size(0)
+                loss = torch.nn.CrossEntropyLoss(reduction="sum")
+                loss_v = loss(outputs, labels)
+                num_samples += inputs.size(0)
+                running_loss += loss_v.item()
 
-        avg_loss = running_loss / total_samples
-        logging.info("[Learner.validate_neighbour]: Computed neighbor loss over {} data samples".format(total_samples))
+        avg_loss = running_loss / num_samples
+        print(f"avg_loss={avg_loss}, running_loss={running_loss}, total_samples={num_samples}, data_set=train",
+              flush=True)
         return avg_loss
+
+    def endboss(self, neighbour_model_param):
+
+        start = time.time()
+
+        neighbour_model = copy.deepcopy(self.model)
+        #neighbour_model = copy.deepcopy(neighbour_model_param)
+        neighbour_model.load_state_dict(neighbour_model_param)
+
+        neighbour_model.eval()
+
+        dataloaders = list()
+
+        # dataloaders.append(self.data.train_dataloader())
+        # dataloaders.append(self.data.val_dataloader())
+        dataloaders.append(self.data.test_dataloader())
+
+        num_samples_lst = list()
+        running_loss_lst = list()
+
+        criterion = torch.nn.CrossEntropyLoss()
+
+        with torch.no_grad():
+            for dataloader in dataloaders:
+                num_samples = 0
+                running_loss = 0.0
+                for inputs, labels in dataloader:
+                    outputs = neighbour_model(inputs)
+
+                    loss = criterion(outputs, labels)
+                    running_loss += loss.item() * labels.size(0)
+                    num_samples += inputs.size(0)
+
+                num_samples_lst.append(num_samples)
+                running_loss_lst.append(running_loss)
+
+        print(f"time = {round(time.time() - start, 2)} sec, running_loss_lst = {running_loss_lst}, num_samples_lst = {num_samples_lst}", flush=True)
+        return round(sum(running_loss_lst) / sum(num_samples_lst), 3)
+
+
+
+
+
+

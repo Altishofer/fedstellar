@@ -32,6 +32,11 @@ from fedstellar.learning.aggregators.helper import cosine_metric, euclidean_metr
     pearson_correlation_metric, jaccard_metric
 
 
+def pearson_correlation_opinion(local_model, untrusted_model):
+    metric = pearson_correlation_metric(local_model, untrusted_model)
+    return max(min(int(metric * 100), 100), 0)
+
+
 class BlockchainReputation(Aggregator):
     """
 	Blockchain Prototype
@@ -72,17 +77,34 @@ class BlockchainReputation(Aggregator):
 
         neighbor_names = [name for name in current_models.keys() if name != self.node_name]
 
-        opinion_values = {name: self.__get_opinion(local_model, current_models[name]) for name in neighbor_names}
+        metric_values = {name: self.__learner.endboss(final_model) for name in neighbor_names}
 
-        print(f"TEST OWN MODEL: local_opinion = {self.__get_opinion(local_model, local_model)}")
+        opinion_values = {name: max(min(round((1 - metric) * 100), 100), 0) for name, metric in metric_values.items()}
 
-        self.__blockchain.push_opinions(opinion_values)
+        initial_metric = self.__learner.endboss(local_model)
+        initial_opinion = max(min(round((1 - initial_metric) * 100), 100), 0)
+
+        OPINION_METRIC = "EndBoss"
+        print(f"\n{'-' * 25} QUALITY METRIC {'-' * 25}", flush=True)
+        rows = [[ip_address, metric] for ip_address, metric in metric_values.items()]
+        rows.append(["Worker Node", initial_metric])
+        print(
+            tabulate(
+                rows,
+                headers=["Neighbor Node", OPINION_METRIC],
+                tablefmt="grid"
+            )
+        )
+
+
+        self.__blockchain.push_opinions(opinion_values, "1 - loss")
 
         reputation_values = self.__blockchain.get_reputations([name for name in current_models.keys()])
 
         normalized_reputation_values = {name: round(reputation_values[name] / (
             ((sum(reputation_values.values()) if sum(reputation_values.values()) > 0 else 1))), 3) for
                                         name in reputation_values}
+
 
         print(f"\n{'-' * 25} GLOBAL REPUTATION {'-' * 25}", flush=True)
         print(
@@ -110,31 +132,33 @@ class BlockchainReputation(Aggregator):
         # for layer in final_model:
         #     final_model[layer] /= total_weights
 
+        final_metric = self.__learner.endboss(final_model)
+        print(f"\n{'-' * 25} FINAL MODEL {'-' * 25}", flush=True)
+        print(
+            tabulate(
+                [["Initial ", initial_metric], ["Aggregated Model Loss", final_metric], ["Improvement", round(initial_metric - final_metric, 3)]],
+                headers=["Key", "Value"],
+                tablefmt="grid"
+            )
+        )
+
         print_with_frame("BLOCKCHAIN AGGREGATION: FINISHED")
+
+        # return final_model if final_opinion > initial_opinion else local_model
         return final_model
 
     def __get_opinion(self, local_model, untrusted_model):
-        # local_opinion = self.cossim_loss_opinion(local_model, untrusted_model)
-        # local_opinion = self.euclidean_opinion(local_model, untrusted_model)
+        # local_opinion  = self.cossim_loss_opinion(local_model, untrusted_model)
+        # local_opinion  = self.euclidean_opinion(local_model, untrusted_model)
         local_opinion = self.minkowski_opinion(local_model, untrusted_model)
-        # local_opinion = self.manhattan_opinion(local_model, untrusted_model)
-        # local_opinion = self.pearson_correlation_opinion(local_model, untrusted_model)
-        # local_opinion = self.jaccard_opinion(local_model, untrusted_model)
+        # local_opinion  = self.manhattan_opinion(local_model, untrusted_model)
+        # local_opinion  = self.pearson_correlation_opinion(local_model, untrusted_model)
+        # local_opinion  = self.jaccard_opinion(local_model, untrusted_model)
         # local_opinion = self.loss_opinion(local_model, untrusted_model)
-        # local_opinion = self.loss_opinion_V2(local_model, untrusted_model)
-        return max(min(round(local_opinion), 100), 0)
-
-    def cossim_loss_opinion(self, local_model, untrusted_model):
-        cossim = cosine_metric(local_model, untrusted_model, similarity=True)
-        avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
-        return cossim * max(min((1 - avg_loss) * 100, 100), 0)
+        return max(min(round(local_opinion), 1), 0)
 
     def loss_opinion(self, local_model, untrusted_model):
-        avg_loss = self.__learner.validate_neighbour_model(untrusted_model)
-        return max(min(round((1 - avg_loss) * 100), 100), 0)
-
-    def loss_opinion_V2(self, local_model, untrusted_model):
-        avg_loss = self.__learner.validate_neighbour_model_V2(untrusted_model)
+        avg_loss = self.__learner.endboss(untrusted_model)
         return max(min(round((1 - avg_loss) * 100), 100), 0)
 
     def euclidean_opinion(self, local_model, untrusted_model):
@@ -147,10 +171,6 @@ class BlockchainReputation(Aggregator):
 
     def manhattan_opinion(self, local_model, untrusted_model):
         metric = manhattan_metric(local_model, untrusted_model)
-        return max(min(int(metric * 100), 100), 0)
-
-    def pearson_correlation_opinion(self, local_model, untrusted_model):
-        metric = pearson_correlation_metric(local_model, untrusted_model)
         return max(min(int(metric * 100), 100), 0)
 
     def jaccard_opinion(self, local_model, untrusted_model):
@@ -313,7 +333,7 @@ class Blockchain:
         sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
         return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
 
-    def push_opinions(self, opinion_dict: dict):
+    def push_opinions(self, opinion_dict: dict, metric_name):
         print(f"\n{'-' * 25} REPORT LOCAL OPINION {'-' * 25}", flush=True)
         tuples = [(name, opinion) for name, opinion in opinion_dict.items()]
         for _ in range(3):
@@ -336,7 +356,7 @@ class Blockchain:
                 print(
                     tabulate(
                         [[ip_address, opinion] for ip_address, opinion in opinion_dict.items()],
-                        headers=["Neighbor Node", "Local Opinion"],
+                        headers=["Neighbor Node", metric_name],
                         tablefmt="grid"
                     )
                 )
