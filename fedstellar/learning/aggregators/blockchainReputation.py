@@ -67,6 +67,11 @@ class BlockchainReputation(Aggregator):
         current_models = {node: submodel for subnodes, (submodel, weight) in model_obj_collection.items()
                           for node in subnodes.split() if node in self.__neighbors}
 
+        for subnodes, (submodel, weight) in model_obj_collection.items():
+            nodes = subnodes.split()
+            print(nodes, flush=True)
+
+
         if not len(current_models):
             logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
             return None
