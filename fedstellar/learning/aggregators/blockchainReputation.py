@@ -71,23 +71,26 @@ class BlockchainReputation(Aggregator):
             logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
             return None
 
-        # current_models[self.node_name] = local_model
+        current_models[self.node_name] = local_model
 
         final_model = {layer: torch.zeros_like(param) for layer, param in local_model.items()}
 
         neighbor_names = [name for name in current_models.keys() if name != self.node_name]
 
-        metric_values = {name: self.__learner.endboss(final_model) for name in neighbor_names}
+        # for name in neighbor_names:
+        #     print(f"ENDBOSS: {name} = {self.__learner.endboss(current_models[name])}")
+
+        metric_values = {name: self.minkowski_opinion(local_model, current_models[name]) for name in neighbor_names}
 
         opinion_values = {name: max(min(round((1 - metric) * 100), 100), 0) for name, metric in metric_values.items()}
 
-        initial_metric = self.__learner.endboss(local_model)
-        initial_opinion = max(min(round((1 - initial_metric) * 100), 100), 0)
+        # initial_metric = self.__learner. (local_model)
+        # initial_opinion = max(min(round((1 - initial_metric) * 100), 100), 0)
 
-        OPINION_METRIC = "EndBoss"
+        OPINION_METRIC = "Minkowski Distance"
         print(f"\n{'-' * 25} QUALITY METRIC {'-' * 25}", flush=True)
         rows = [[ip_address, metric] for ip_address, metric in metric_values.items()]
-        rows.append(["Worker Node", initial_metric])
+        # rows.append(["Worker Node", initial_metric])
         print(
             tabulate(
                 rows,
@@ -96,8 +99,7 @@ class BlockchainReputation(Aggregator):
             )
         )
 
-
-        self.__blockchain.push_opinions(opinion_values, "1 - loss")
+        self.__blockchain.push_opinions(opinion_values, "Normalized " + OPINION_METRIC)
 
         reputation_values = self.__blockchain.get_reputations([name for name in current_models.keys()])
 
@@ -132,11 +134,12 @@ class BlockchainReputation(Aggregator):
         # for layer in final_model:
         #     final_model[layer] /= total_weights
 
-        final_metric = self.__learner.endboss(final_model)
+        final_metric = self.minkowski_opinion(local_model, final_model)
+
         print(f"\n{'-' * 25} FINAL MODEL {'-' * 25}", flush=True)
         print(
             tabulate(
-                [["Initial ", initial_metric], ["Aggregated Model Loss", final_metric], ["Improvement", round(initial_metric - final_metric, 3)]],
+                [["New Distance", final_metric]], #["Aggregated Model Loss", final_metric], ["Improvement", round(initial_metric - final_metric, 3)]],
                 headers=["Key", "Value"],
                 tablefmt="grid"
             )
@@ -147,35 +150,26 @@ class BlockchainReputation(Aggregator):
         # return final_model if final_opinion > initial_opinion else local_model
         return final_model
 
-    def __get_opinion(self, local_model, untrusted_model):
-        # local_opinion  = self.cossim_loss_opinion(local_model, untrusted_model)
-        # local_opinion  = self.euclidean_opinion(local_model, untrusted_model)
-        local_opinion = self.minkowski_opinion(local_model, untrusted_model)
-        # local_opinion  = self.manhattan_opinion(local_model, untrusted_model)
-        # local_opinion  = self.pearson_correlation_opinion(local_model, untrusted_model)
-        # local_opinion  = self.jaccard_opinion(local_model, untrusted_model)
-        # local_opinion = self.loss_opinion(local_model, untrusted_model)
-        return max(min(round(local_opinion), 1), 0)
-
     def loss_opinion(self, local_model, untrusted_model):
         avg_loss = self.__learner.endboss(untrusted_model)
-        return max(min(round((1 - avg_loss) * 100), 100), 0)
+        return max(min(round(avg_loss, 2), 1), 0)
 
     def euclidean_opinion(self, local_model, untrusted_model):
         metric = euclidean_metric(local_model, untrusted_model)
-        return max(min(int(metric * 100), 100), 0)
+        return max(min(round(metric, 2), 1), 0)
 
     def minkowski_opinion(self, local_model, untrusted_model):
         metric = minkowski_metric(local_model, untrusted_model, p=2)
-        return max(min(round((10 - metric) * 10), 100), 0)
+        print(f"{metric}", flush=True)
+        return max(min(round((10 - metric) / 10, 2), 1), 0)
 
     def manhattan_opinion(self, local_model, untrusted_model):
         metric = manhattan_metric(local_model, untrusted_model)
-        return max(min(int(metric * 100), 100), 0)
+        return max(min(round(metric, 2), 1), 0)
 
     def jaccard_opinion(self, local_model, untrusted_model):
         metric = jaccard_metric(local_model, untrusted_model)
-        return max(min(round(metric * 100), 100), 0)
+        return max(min(round(metric, 2), 1), 0)
 
 
 def print_with_frame(message):

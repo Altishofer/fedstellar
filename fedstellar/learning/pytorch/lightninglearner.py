@@ -287,7 +287,6 @@ class LightningLearner(NodeLearner):
         start = time.time()
 
         neighbour_model = copy.deepcopy(self.model)
-        #neighbour_model = copy.deepcopy(neighbour_model_param)
         neighbour_model.load_state_dict(neighbour_model_param)
 
         neighbour_model.eval()
