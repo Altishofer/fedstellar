@@ -168,7 +168,7 @@ def send_from_directory(directory, filename, **options):
 @app.route("/login", methods=["POST"])
 def fedstellar_login():
     user_submitted = request.form.get("user").upper()
-    if (user_submitted in list_users()) and True:
+    if (user_submitted in list_users()):
         """ verify(
             user_submitted, request.form.get("password")
         ):

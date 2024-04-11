@@ -3,6 +3,7 @@ import logging
 import torch
 import numpy
 from fedstellar.learning.aggregators.aggregator import Aggregator
+from fedstellar.learning.aggregators.helper import cosine_metric
 
 
 class Krum(Aggregator):
@@ -31,6 +32,13 @@ class Krum(Aggregator):
                 "[Krum] Trying to aggregate models when there is no models"
             )
             return None
+
+        print(f"{'*' * 25} COMPUTE COSIN DISTANCE {'*' * 25}")
+        print(f"AGGREGATION: {len(models)} models were received for aggregation")
+        for idx_outer, model_outer in enumerate(models.keys()):
+            for idx_inner, model_inner in enumerate(models.keys()):
+                print(f"AGGREGATION: cosine_distance({idx_inner}, {idx_outer}) => {cosine_metric(models[model_inner][0], models[model_outer][0], similarity=True)}")
+        print(f"{'*' * 25} FINISHED {'*' * 25}")
 
         models = list(models.values())
 

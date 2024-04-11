@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
+import json
 import logging
 import time
 
@@ -21,6 +22,7 @@ import requests
 import torch
 
 from eth_account import Account
+from requests import Response
 from web3 import Web3
 from web3.middleware import construct_sign_and_send_raw_middleware
 from web3.middleware import geth_poa_middleware
@@ -30,11 +32,6 @@ from tabulate import tabulate
 from fedstellar.learning.aggregators.aggregator import Aggregator
 from fedstellar.learning.aggregators.helper import cosine_metric, euclidean_metric, minkowski_metric, manhattan_metric, \
     pearson_correlation_metric, jaccard_metric
-
-
-def pearson_correlation_opinion(local_model, untrusted_model):
-    metric = pearson_correlation_metric(local_model, untrusted_model)
-    return max(min(int(metric * 100), 100), 0)
 
 
 class BlockchainReputation(Aggregator):
@@ -61,22 +58,26 @@ class BlockchainReputation(Aggregator):
             logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
             return None
 
+        print(f"{'*' * 25} COMPUTE COSIN DISTANCE {'*' * 25}")
+        print(f"AGGREGATION: {len(model_obj_collection)} models were received for aggregation")
+        for idx_outer, model_outer in enumerate(model_obj_collection.keys()):
+            for idx_inner, model_inner in enumerate(model_obj_collection.keys()):
+                print(
+                    f"AGGREGATION: cosine_distance({idx_inner}, {idx_outer}) => {cosine_metric(model_obj_collection[model_inner][0], model_obj_collection[model_outer][0], similarity=True)}")
+
         local_model = self.__learner.get_parameters()
         #local_weight = self.__learner.get_num_samples()[0]
 
         current_models = {node: submodel for subnodes, (submodel, weight) in model_obj_collection.items()
                           for node in subnodes.split() if node in self.__neighbors}
 
-        for subnodes, (submodel, weight) in model_obj_collection.items():
-            nodes = subnodes.split()
-            print(nodes, flush=True)
-
-
         if not len(current_models):
             logging.error("[BlockchainReputation] Trying to aggregate models when there are no models")
             return None
 
         current_models[self.node_name] = local_model
+
+        # self.__blockchain.aggregate(local_model, local_model)
 
         final_model = {layer: torch.zeros_like(param) for layer, param in local_model.items()}
 
@@ -86,6 +87,12 @@ class BlockchainReputation(Aggregator):
         #     print(f"ENDBOSS: {name} = {self.__learner.endboss(current_models[name])}")
 
         metric_values = {name: self.minkowski_opinion(local_model, current_models[name]) for name in neighbor_names}
+
+        # print(f"{'*' * 25} COMPUTE COSIN DISTANCE {'*' * 25}")
+        # for idx_outer, model_outer in enumerate(model_obj_collection.keys()):
+        #     for idx_inner, model_inner in enumerate(model_obj_collection.keys()):
+        #         print(f"cosine_distance({idx_inner}, {idx_outer}) => {cosine_metric(model_obj_collection[model_inner][0], model_obj_collection[model_outer][0], similarity=True)}")
+        # print(f"{'*' * 25} FINISHED {'*' * 25}")
 
         opinion_values = {name: max(min(round((1 - metric) * 100), 100), 0) for name, metric in metric_values.items()}
 
@@ -111,7 +118,6 @@ class BlockchainReputation(Aggregator):
         normalized_reputation_values = {name: round(reputation_values[name] / (
             ((sum(reputation_values.values()) if sum(reputation_values.values()) > 0 else 1))), 3) for
                                         name in reputation_values}
-
 
         print(f"\n{'-' * 25} GLOBAL REPUTATION {'-' * 25}", flush=True)
         print(
@@ -144,8 +150,18 @@ class BlockchainReputation(Aggregator):
         print(f"\n{'-' * 25} FINAL MODEL {'-' * 25}", flush=True)
         print(
             tabulate(
-                [["New Distance", final_metric]], #["Aggregated Model Loss", final_metric], ["Improvement", round(initial_metric - final_metric, 3)]],
-                headers=["Key", "Value"],
+                [["New Distance", final_metric]],
+                #["Aggregated Model Loss", final_metric], ["Improvement", round(initial_metric - final_metric, 3)]],
+                headers=["Newly aggregated Model", OPINION_METRIC],
+                tablefmt="grid"
+            )
+        )
+
+        print(f"\n{'-' * 25} TOTAL GAS USED {'-' * 25}", flush=True)
+        print(
+            tabulate(
+                self.__blockchain.report_gas_oracle(),
+                headers=["Worker-Node", "Cumulative Gas used"],
                 tablefmt="grid"
             )
         )
@@ -154,6 +170,14 @@ class BlockchainReputation(Aggregator):
 
         # return final_model if final_opinion > initial_opinion else local_model
         return final_model
+
+    def cossim_opinion(self, local_model, untrusted_model):
+        cossim = cosine_metric(local_model, untrusted_model, similarity=True)
+        return max(min(round(cossim, 2), 1), 0)
+
+    def pearson_correlation_opinion(self, local_model, untrusted_model):
+        metric = pearson_correlation_metric(self, local_model, untrusted_model)
+        return max(min(int(metric * 100), 100), 0)
 
     def loss_opinion(self, local_model, untrusted_model):
         avg_loss = self.__learner.endboss(untrusted_model)
@@ -165,7 +189,6 @@ class BlockchainReputation(Aggregator):
 
     def minkowski_opinion(self, local_model, untrusted_model):
         metric = minkowski_metric(local_model, untrusted_model, p=2)
-        print(f"{metric}", flush=True)
         return max(min(round((10 - metric) / 10, 2), 1), 0)
 
     def manhattan_opinion(self, local_model, untrusted_model):
@@ -202,7 +225,9 @@ class Blockchain:
         self.__acc_address = str()
         self.__rpc_url = "http://172.25.0.104:8545"
         self.__oracle_url = "http://172.25.0.105:8081"
-        self.__balance = float()  # DDos protection?
+        self.__balance = float()
+        self.__gas_used = int()
+        self.__gas_price = float(27.3)
 
         self.__acc = self.__create_account()
         self.__web3 = self.__initialize_geth()
@@ -217,7 +242,7 @@ class Blockchain:
         print_with_frame("BLOCKCHAIN INITIALIZATION: FINISHED")
 
     def __initialize_geth(self):
-        web3 = Web3(Web3.HTTPProvider(self.__rpc_url, request_kwargs={'timeout': 30}))
+        web3 = Web3(Web3.HTTPProvider(self.__rpc_url, request_kwargs={'timeout': 10}))
         web3.middleware_onion.inject(geth_poa_middleware, layer=0)
         web3.middleware_onion.add(construct_sign_and_send_raw_middleware(self.__acc))
         web3.eth.default_account = self.__acc_address
@@ -293,24 +318,47 @@ class Blockchain:
     def __request_funds_from_oracle(self) -> None:
         for _ in range(3):
             try:
-                r = requests.post(
-                    url=f"{self.__oracle_url}/faucet",
-                    json={f"address": self.__acc_address},
-                    headers=self.__header,
-                    timeout=10
-                )
-                r = requests.post(
+                response = requests.post(
                     url=f"{self.__oracle_url}/faucet",
                     json={f"address": "0x39c72ef67B74d350DdEdC0F1de49D7e73E797871"},
                     headers=self.__header,
                     timeout=10
                 )
-                if r.status_code == 200:
+                response = requests.post(
+                    url=f"{self.__oracle_url}/faucet",
+                    json={f"address": self.__acc_address},
+                    headers=self.__header,
+                    timeout=10
+                )
+                if response.status_code == 200:
                     return print(f"ORACLE: Received 500 ETH", flush=True)
+                else:
+                    raise Exception(f"REST status code {response.status_code}")
             except Exception as e:
                 print(f"EXCEPTION: create_account() => {e}", flush=True)
                 time.sleep(4)
         raise RuntimeError(f"ERROR: create_account() could not be resolved")
+
+    def report_gas_oracle(self) -> list:
+        for _ in range(3):
+            try:
+                response = requests.post(
+                    url=f"{self.__oracle_url}/report_gas",
+                    json={"sender": self.__home_ip, "amount": self.__gas_used},
+                    headers=self.__header,
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    # print(f"ORACLE: Reported gas = {self.__gas_used}", flush=True)
+                    self.__gas_used = 0
+                    return [[node, amount] for node, amount in response.json().items()]
+                else:
+                    raise Exception(f"REST status code {response.status_code}")
+
+            except Exception as e:
+                print(f"EXCEPTION: report_gas_oracle({self.__gas_used}) => {e}", flush=True)
+                time.sleep(4)
+        raise RuntimeError(f"ERROR: report_gas_oracle({self.__gas_used}) could not be resolved")
 
     def __verify_balance(self) -> None:
         for _ in range(3):
@@ -330,7 +378,99 @@ class Blockchain:
     def __sign_and_deploy(self, trx_hash):
         s_tx = self.__web3.eth.account.sign_transaction(trx_hash, private_key=self.__private_key)
         sent_tx = self.__web3.eth.send_raw_transaction(s_tx.rawTransaction)
-        return self.__web3.eth.wait_for_transaction_receipt(sent_tx)
+        receipt = self.__web3.eth.wait_for_transaction_receipt(sent_tx)
+        self.__gas_used += receipt.gasUsed
+        return receipt
+
+    @staticmethod
+    def serialize_model(model) -> list:
+        model_lst = [(layer, params.tolist()) for layer, params in model.items()]
+        model_lst_solidity = list()
+        for layer, lst in model_lst:
+            if layer.split(".")[1] == "bias":
+                model_lst_solidity.append((layer, lst))
+            if layer.split(".")[1] == "weight":
+                for idx, dim in enumerate(lst):
+                    model_lst_solidity.append((f"{layer}_{idx}", dim))
+        model_flat = list()
+        for layer, vals in model_lst_solidity:
+            tmp = list()
+            for val in vals:
+                tmp.append(int(val * 1000000))
+            model_flat.append((layer, tmp))
+        return model_flat
+
+    def aggregate(self, model_1: dict, model_2: dict):
+        print(f"\n{'-' * 25} BLOCKCHAIN AGGREGATION {'-' * 25}", flush=True)
+
+        model_1_lst = [(layer, params.tolist()) for layer, params in model_1.items()]
+        model_2_lst = [(layer, params.tolist()) for layer, params in model_2.items()]
+
+        model_1_lst_solidity = list()
+        model_2_lst_solidity = list()
+
+        for layer, lst in model_1_lst:
+            if layer.split(".")[1] == "bias":
+                model_1_lst_solidity.append((layer, lst))
+            if layer.split(".")[1] == "weight":
+                for idx, dim in enumerate(lst):
+                    model_1_lst_solidity.append((f"{layer}_{idx}", dim))
+
+        for layer, lst in model_2_lst:
+            if layer.split(".")[1] == "bias":
+                model_2_lst_solidity.append((layer, lst))
+            if layer.split(".")[1] == "weight":
+                for idx, dim in enumerate(lst):
+                    model_2_lst_solidity.append((f"{layer}_{idx}", dim))
+
+        model_1_flat = list()
+        model_2_flat = list()
+        for layer, vals in model_1_lst_solidity:
+            tmp = list()
+            for val in vals:
+                tmp.append(int(val * 1000000))
+            model_1_flat.append((layer, tmp))
+
+        for layer, vals in model_2_lst_solidity:
+            tmp = list()
+            for val in vals:
+                tmp.append(int(val * 1000000))
+            model_2_flat.append((layer, tmp))
+
+        for _ in range(3):
+            try:
+                unsigned_trx = self.__contract_obj.functions.aggregate(model_1_flat, model_2_flat).build_transaction(
+                    {
+                        "chainId": self.__web3.eth.chain_id,
+                        "from": self.__acc_address,
+                        "nonce": self.__web3.eth.get_transaction_count(
+                            self.__web3.to_checksum_address(self.__acc_address),
+                            'pending'
+                        ),
+                        "gasPrice": self.__web3.to_wei(self.__gas_price, "gwei")
+                    }
+                )
+                conf = self.__sign_and_deploy(unsigned_trx)
+                json_response = self.__web3.to_json(conf)
+                model_dict = json.loads(json_response)
+
+                for layer, lst in model_dict.items():
+                    print(f"BLOCKCHAIN: Aggregated Layer {layer} = {lst}", flush=True)
+
+                # print(
+                #     tabulate(
+                #         [[layer, lst] for layer, lst in .items()],
+                #         headers=["La", metric_name],
+                #         tablefmt="grid"
+                #     )
+                # )
+
+                return model_dict
+
+            except Exception as e:
+                print(f"EXCEPTION: aggregate(model_1, model_2) => {e}", flush=True)
+                time.sleep(4)
+        raise RuntimeError(f"ERROR: aggregate(model_1, model_2) could not be resolved")
 
     def push_opinions(self, opinion_dict: dict, metric_name):
         print(f"\n{'-' * 25} REPORT LOCAL OPINION {'-' * 25}", flush=True)
@@ -345,7 +485,7 @@ class Blockchain:
                             self.__web3.to_checksum_address(self.__acc_address),
                             'pending'
                         ),
-                        "gasPrice": self.__web3.to_wei("1", "gwei")
+                        "gasPrice": self.__web3.to_wei(self.__gas_price, "gwei")
                     }
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
@@ -372,7 +512,7 @@ class Blockchain:
             try:
                 reputations = self.__contract_obj.functions.get_reputations(ip_addresses).call({
                     "from": self.__acc_address,
-                    "gasPrice": self.__web3.to_wei("1", "gwei")
+                    "gasPrice": self.__web3.to_wei(self.__gas_price, "gwei")
                 })
                 # if reputations:
                 #     print(f"BLOCKCHAIN: Reputations: AVG = {reputations[0][4]}%, Stddev = {reputations[0][5]}",
@@ -419,7 +559,7 @@ class Blockchain:
                             self.__web3.to_checksum_address(self.__acc_address),
                             'pending'
                         ),
-                        "gasPrice": self.__web3.to_wei("1", "gwei")
+                        "gasPrice": self.__web3.to_wei(self.__gas_price, "gwei")
                     }
                 )
                 conf = self.__sign_and_deploy(unsigned_trx)
@@ -442,7 +582,7 @@ class Blockchain:
             try:
                 confirmation = self.__contract_obj.functions.confirm_registration().call({
                     "from": self.__acc_address,
-                    "gasPrice": self.__web3.to_wei("1", "gwei")
+                    "gasPrice": self.__web3.to_wei(self.__gas_price, "gwei")
                 })
                 if not confirmation:
                     self.__register_neighbors()

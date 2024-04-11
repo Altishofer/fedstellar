@@ -40,6 +40,11 @@ contract ReputationSystem {
         uint stddev_opinions;
     }
 
+    struct Layer {
+        string name;
+        int256[] values;
+    }
+
     // Events for debugging
     event Debug(string what, uint256 variable);
     event Debug(string what, bool variable);
@@ -158,6 +163,35 @@ contract ReputationSystem {
         return r;
     }
 
+    function aggregate(Layer[] memory a, Layer[] memory b) public returns (Layer[] memory){
+
+        uint256 max_len = a.length > b.length ? a.length : b.length;
+        uint256 min_len = a.length < b.length ? a.length : b.length;
+
+        Layer[] memory result = new Layer[](max_len);
+
+
+        for (uint256 i=0; i<min_len; i++){
+
+            uint256 current_max_len = a[i].values.length > b[i].values.length ? a[i].values.length : b[i].values.length;
+            uint256 current_min_len = a[i].values.length < b[i].values.length ? a[i].values.length : b[i].values.length;
+
+            require(keccak256(bytes(a[i].name)) == keccak256(bytes(b[i].name)), "layers are not the same");
+
+            Layer memory new_layer = Layer(a[i].name, new int256[](current_max_len));
+
+            for (uint idx=0; idx<current_min_len; idx++){
+
+                new_layer.values[idx] = (int256(MULTIPLIER) * a[i].values[idx] + int256(MULTIPLIER) * b[i].values[idx]) / 2;
+                new_layer.values[idx] /= int256(MULTIPLIER);
+
+            }
+            result[i] = new_layer;
+        }
+
+        return result;
+    }
+
     function rate_neighbors(Dict[] memory neighbors) public returns (bool){
 
         require(accounts[msg.sender].registered, "msg.sender did not register the neighborhood.");
@@ -202,9 +236,9 @@ contract ReputationSystem {
         return (adj_matrix[node_a][node_b].neighbor && adj_matrix[node_b][node_a].neighbor) || node_a == node_b;
     }
 
-    function getHistory(uint a, uint b) public view returns (uint[] memory){
-        return adj_matrix[a][b].opinions;
-    }
+    // function getHistory(uint a, uint b) public view returns (uint[] memory){
+    //     return adj_matrix[a][b].opinions;
+    // }
 
     function compute_difference(uint256 a, uint256 b) public returns (uint){
 
@@ -213,7 +247,32 @@ contract ReputationSystem {
         uint256[] memory opinions_a = adj_matrix[a][b].opinions;
         uint256[] memory opinions_b = adj_matrix[b][a].opinions;
 
-        return abs(int256(opinions_a.length) - int256(opinions_b.length));
+        uint256 p_a;
+        uint256 p_b;
+
+        uint256 differences = abs(int256(opinions_a.length) - int256(opinions_b.length));
+
+        while (p_a < opinions_a.length && p_b < opinions_b.length){
+
+            if (opinions_a[p_a] == opinions_b[p_b]){
+                p_a++;
+                p_b++;
+            } else if (p_b + 1 < opinions_b.length && opinions_a[p_a] == opinions_b[p_b +1]){
+                differences++;
+                p_b++;
+            } else if (p_a + 1 < opinions_a.length && opinions_b[p_b] == opinions_a[p_a +1]){
+                differences++;
+                p_a++;
+            } else {
+                p_a++;
+                p_b++;
+                differences += 2;
+            }
+        }
+
+        emit Debug("differences", differences);
+
+        return differences;
     }
 
 
@@ -272,8 +331,8 @@ contract ReputationSystem {
             if (a == n || valid_neighbors(a, n) == false){
                 continue;
             }
-            require(valid_neighbors(a, n), "malicious(), nodes are not valid neighbors");
-            require(a != n, "Malicious, a != n == false");
+            require(valid_neighbors(a, n), "Malicious, nodes are not valid neighbors");
+            require(a != n, "Malicious, a != n is false");
             differences[n] = compute_difference(a, n);
             neighbors_cnt++;
             if (differences[n] > 1){
@@ -353,52 +412,44 @@ contract ReputationSystem {
 
         emit Debug("sum_reputations", sum_reputations);
 
-        // if (sum_reputations <= 0 || reputations.length <= 1) {
-        //     for (uint i = 0; i < reputations.length; i++){
-        //         reputations[i].reputation /= MULTIPLIER;
-        //     }
-        //     return reputations;
-        // }
+        if (sum_reputations <= 0 || reputations.length <= 1) {
+            for (uint i = 0; i < reputations.length; i++){
+                reputations[i].reputation /= MULTIPLIER;
+            }
+            return reputations;
+        }
 
-        uint256 avg = 0;
+        require(reputations.length > 1, "reputations.length <= 1");
+        uint256 avg = sum_reputations / reputations.length;
         uint256 stddev = 0;
 
-        if (sum_reputations > 0 && reputations.length > 0){
-            avg = sum_reputations / reputations.length;
+        emit Debug("avg", avg);
 
-            emit Debug("avg", avg);
-
-            for (uint256 i = 0; i < reputations.length; i++) {
-                uint256 diff = reputations[i].reputation > avg ? reputations[i].reputation - avg : avg - reputations[i].reputation;
-                stddev += diff * diff; // Squaring to calculate variance
-            }
-
-            stddev /= reputations.length;
-
-            // Overflow check and correction
-            if (stddev > type(uint256).max - 1) {
-                stddev = type(uint256).max - 1;
-            }
-
-            // Avoid square root of 0 or very small numbers
-            if (stddev > 0) {
-                stddev = sqrt(stddev);
-            }
-
-            emit Debug("stddev", stddev);
-
+        for (uint256 i = 0; i < reputations.length; i++) {
+            uint256 diff = reputations[i].reputation > avg ? reputations[i].reputation - avg : avg - reputations[i].reputation;
+            stddev += diff * diff; // Squaring to calculate variance
         }
+
+        stddev /= reputations.length;
+
+        // Overflow check and correction
+        if (stddev > type(uint256).max - 1) {
+            stddev = type(uint256).max - 1;
+        }
+
+        // Avoid square root of 0 or very small numbers
+        if (stddev > 0) {
+            stddev = sqrt(stddev);
+        }
+
+        emit Debug("stddev", stddev);
 
         for (uint256 i = 0; i < reputations.length; i++) {
 
-            uint256 cntt = 0;
-
-            if (stddev > 0){
-                require(stddev > 0, "stddev <= 0");
-                cntt = abs(int256(avg) - int256(reputations[i].reputation)) / stddev;
-            }
+            uint256 cntt = abs(int256(avg) - int256(reputations[i].reputation)) / stddev;
 
             if (
+                    stddev > 0 &&
                     reputations[i].reputation < avg &&
                     cntt >= 1
                 ){
@@ -425,7 +476,7 @@ contract ReputationSystem {
             target.centrality = nodes[target.index].centrality / (MULTIPLIER / 100);
             target.difference = compute_difference(index_sender, target.index);
             target.avg_difference = malicious(target.index);
-            target.stddev_opinions = stddev_opinions(index_sender, target.index);
+            // target.stddev_opinions = stddev_opinions(index_sender, target.index);
 
             reputations[i] = target;
 
@@ -572,12 +623,12 @@ contract ReputationSystem {
         return true;
     }
 
-    function get_centrality() public view returns (uint[] memory){
-        uint256[] memory ret = new uint256[](nodes.length);
-        for (uint256 i=0; i<nodes.length; i++){
-            ret[i] = nodes[i].centrality;
-        }
-        return ret;
-    }
+    // function get_centrality() public view returns (uint[] memory){
+    //     uint256[] memory ret = new uint256[](nodes.length);
+    //     for (uint256 i=0; i<nodes.length; i++){
+    //         ret[i] = nodes[i].centrality;
+    //     }
+    //     return ret;
+    // }
 
 }

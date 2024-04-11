@@ -18,6 +18,8 @@ class Manager:
 
     def __init__(self):
         self.contract_abi = dict()
+        self.__gas_store = dict()
+        self.__gas_price = float(27.3)
         self.ready = self.wait_until_rpc_up()
         self.acc = self.unlock()
         self.web3 = self.initialize_geth()
@@ -80,6 +82,10 @@ class Manager:
                         "*": {
                             "*": ["abi", "metadata", "evm.bytecode", "evm.sourceMap"]
                         }
+                    },
+                    "optimizer": {
+                        "enabled": True,
+                        "runs": 1000
                     }
                 },
             },
@@ -108,8 +114,8 @@ class Manager:
                     "from": self.acc.address,
                     "value": self.web3.to_wei("500", "ether"),
                     "to": self.web3.to_checksum_address(address),
-                    "nonce": self.web3.eth.get_transaction_count(self.acc.address),
-                    "gasPrice": self.web3.to_wei("1", "gwei"),
+                    "nonce": self.web3.eth.get_transaction_count(self.acc.address, 'pending'),
+                    "gasPrice": self.web3.to_wei(self.__gas_price, "gwei"),
                     "gas": self.web3.to_wei("22000", "wei")
                 }
                 tx_receipt = self.sign_and_deploy(tx)
@@ -122,7 +128,9 @@ class Manager:
     def sign_and_deploy(self, hash):
         s_tx = self.web3.eth.account.sign_transaction(hash, private_key=self.acc.key)
         sent_tx = self.web3.eth.send_raw_transaction(s_tx.rawTransaction)
-        return self.web3.eth.wait_for_transaction_receipt(sent_tx, timeout=5)
+        receipt = self.web3.eth.wait_for_transaction_receipt(sent_tx, timeout=5)
+        self.report_gas("Oracle", receipt.gasUsed)
+        return receipt
 
     def deploy(self):
         for _ in range(20):
@@ -130,7 +138,7 @@ class Manager:
                 "chainId": self.web3.eth.chain_id,
                 "from": self.acc.address,
                 "value": self.web3.to_wei("3", "ether"),
-                "gasPrice": self.web3.to_wei("1", "gwei"),
+                "gasPrice": self.web3.to_wei(self.__gas_price, "gwei"),
                 "nonce": self.web3.eth.get_transaction_count(self.acc.address, 'pending')
             })
             try:
@@ -163,26 +171,38 @@ class Manager:
             "balance_eth": self.web3.from_wei(balance, "ether")
         }
 
+    def report_gas(self, sender, amount):
+        if sender in self.__gas_store:
+            self.__gas_store[sender] += amount
+        else:
+            self.__gas_store[sender] = amount
+
+    def get_gas_report(self):
+        gas_copy = self.__gas_store.copy()
+        gas_copy["Sum (WEI)"] = sum(self.__gas_store.values())
+        gas_copy["Sum (USD)"] = f"{round(sum(self.__gas_store.values()) * 0.00001971):,}"
+        return gas_copy
+
     def verify_centrality(self):
 
         unsigned_trx = self.contractObj.functions.betweenness_centrality().build_transaction(
             {
                 "chainId": self.web3.eth.chain_id,
                 "from": self.acc.address,
-                "nonce": self.web3.eth.get_transaction_count(self.acc.address),
-                "gasPrice": self.web3.to_wei("1", "gwei")
+                "nonce": self.web3.eth.get_transaction_count(self.acc.address, 'pending'),
+                "gasPrice": self.web3.to_wei(self.__gas_price, "gwei")
             }
         )
         conf = self.sign_and_deploy(unsigned_trx)
 
         adj_list = self.contractObj.functions.get_adj().call({
             "from": self.acc.address,
-            "gasPrice": self.web3.to_wei("1", "gwei")
+            "gasPrice": self.web3.to_wei(self.__gas_price, "gwei")
         })
 
         blockchain_centrality = self.contractObj.functions.get_centrality().call({
             "from": self.acc.address,
-            "gasPrice": self.web3.to_wei("1", "gwei")
+            "gasPrice": self.web3.to_wei(self.__gas_price, "gwei")
         })
 
         adj_matrix = list()
@@ -269,6 +289,13 @@ def faucet():
     return jsonify({
         "Message": m.send_eth(address)
     })
+
+@app.route("/report_gas", methods=["POST"])
+def report_gas():
+    sender = request.get_json().get("sender")
+    amount = request.get_json().get("amount")
+    m.report_gas(sender, amount)
+    return jsonify(m.get_gas_report())
 
 
 @app.route("/verify_centrality", methods=["GET"])

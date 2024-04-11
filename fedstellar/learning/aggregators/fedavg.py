@@ -21,6 +21,7 @@ import logging
 import torch
 
 from fedstellar.learning.aggregators.aggregator import Aggregator
+from fedstellar.learning.aggregators.helper import cosine_metric
 
 
 class FedAvg(Aggregator):
@@ -46,11 +47,17 @@ class FedAvg(Aggregator):
             logging.error("[FedAvg] Trying to aggregate models when there are no models")
             return None
 
+        print(f"{'*' * 25} COMPUTE COSIN DISTANCE {'*' * 25}")
+        print(f"AGGREGATION: {len(models)} was received for aggregation")
+        for idx_outer, model_outer in enumerate(models.keys()):
+            for idx_inner, model_inner in enumerate(models.keys()):
+                print(f"AGGREGATION: cosine_distance({idx_inner}, {idx_outer}) => {cosine_metric(models[model_inner][0], models[model_outer][0], similarity=True)}")
+        print(f"{'*' * 25} FINISHED {'*' * 25}")
+
         models = list(models.values())
 
         # Total Samples
         total_samples = sum(w for _, w in models)
-        print(f"{'*'*50} samples = {[w for _, w in models]}")
 
         # Create a Zero Model
         accum = {layer: torch.zeros_like(param) for layer, param in models[-1][0].items()}
@@ -58,7 +65,6 @@ class FedAvg(Aggregator):
         # Add weighted models
         logging.info(f"[FedAvg.aggregate] Aggregating models: num={len(models)}")
         for model, weight in models:
-            print(f"{'*' * 50} weight = {weight}")
             for layer in accum:
                 accum[layer] += model[layer] * weight
 
